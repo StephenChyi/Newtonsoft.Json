@@ -121,13 +121,17 @@ namespace Newtonsoft.Json.Tests
         [Test]
         public void PopulateObjectWithOnlyComment()
         {
-            ExceptionAssert.Throws<JsonSerializationException>(() =>
+            var ex = ExceptionAssert.Throws<JsonSerializationException>(() =>
             {
                 string json = @"// file header";
 
                 PopulateTestObject o = new PopulateTestObject();
                 JsonConvert.PopulateObject(json, o);
             }, "No JSON content found. Path '', line 1, position 14.");
+
+            Assert.AreEqual(1, ex.LineNumber);
+            Assert.AreEqual(14, ex.LinePosition);
+            Assert.AreEqual(string.Empty, ex.Path);
         }
 
         [Test]
@@ -1161,12 +1165,8 @@ namespace Newtonsoft.Json.Tests
             Assert.AreEqual(typeof(DateTime), jsonReader.ValueType);
         }
 
-#if DNXCORE50
-        [Test(Skip = "Don't run with other unit tests")]
-#else
-        [Ignore("Don't run with other unit tests")]
+#if false
         [Test]
-#endif
         public void StackOverflowTest()
         {
             StringBuilder sb = new StringBuilder();
@@ -1188,6 +1188,7 @@ namespace Newtonsoft.Json.Tests
             JsonSerializer serializer = new JsonSerializer() { };
             serializer.Deserialize<Nest>(new JsonTextReader(new StringReader(json)));
         }
+#endif
 
         public class Nest
         {
