@@ -25,6 +25,7 @@
 
 #if HAVE_BINARY_SERIALIZATION
 using System;
+using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
 using System.Runtime.Serialization;
 using Newtonsoft.Json.Utilities;
@@ -32,6 +33,9 @@ using Newtonsoft.Json.Linq;
 
 namespace Newtonsoft.Json.Serialization
 {
+#pragma warning disable SYSLIB0050
+    [RequiresUnreferencedCode(MiscellaneousUtils.TrimWarning)]
+    [RequiresDynamicCode(MiscellaneousUtils.AotWarning)]
     internal class JsonFormatterConverter : IFormatterConverter
     {
         private readonly JsonSerializerInternalReader _reader;
@@ -53,10 +57,10 @@ namespace Newtonsoft.Json.Serialization
             ValidationUtils.ArgumentNotNull(value, nameof(value));
 
             JValue v = (JValue)value;
-            return (T)System.Convert.ChangeType(v.Value, typeof(T), CultureInfo.InvariantCulture);
+            return (T)System.Convert.ChangeType(v.Value, typeof(T), CultureInfo.InvariantCulture)!;
         }
 
-        public object? Convert(object value, Type type)
+        public object Convert(object value, Type type)
         {
             ValidationUtils.ArgumentNotNull(value, nameof(value));
 
@@ -65,7 +69,7 @@ namespace Newtonsoft.Json.Serialization
                 throw new ArgumentException("Value is not a JToken.", nameof(value));
             }
 
-            return _reader.CreateISerializableItem(token, type, _contract, _member);
+            return _reader.CreateISerializableItem(token, type, _contract, _member)!;
         }
 
         public object Convert(object value, TypeCode typeCode)
@@ -74,7 +78,7 @@ namespace Newtonsoft.Json.Serialization
 
             object? resolvedValue = (value is JValue v) ? v.Value : value;
 
-            return System.Convert.ChangeType(resolvedValue, typeCode, CultureInfo.InvariantCulture);
+            return System.Convert.ChangeType(resolvedValue, typeCode, CultureInfo.InvariantCulture)!;
         }
 
         public bool ToBoolean(object value)
@@ -152,6 +156,7 @@ namespace Newtonsoft.Json.Serialization
             return GetTokenValue<ulong>(value);
         }
     }
+#pragma warning restore SYSLIB0050
 }
 
 #endif

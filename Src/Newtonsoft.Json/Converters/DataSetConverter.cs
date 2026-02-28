@@ -26,13 +26,17 @@
 #if HAVE_ADO_NET
 using System;
 using System.Data;
+using System.Diagnostics.CodeAnalysis;
 using Newtonsoft.Json.Serialization;
+using Newtonsoft.Json.Utilities;
 
 namespace Newtonsoft.Json.Converters
 {
     /// <summary>
     /// Converts a <see cref="DataSet"/> to and from JSON.
     /// </summary>
+    [RequiresUnreferencedCode(MiscellaneousUtils.TrimWarning)]
+    [RequiresDynamicCode(MiscellaneousUtils.AotWarning)]
     public class DataSetConverter : JsonConverter
     {
         /// <summary>
@@ -84,7 +88,7 @@ namespace Newtonsoft.Json.Converters
             // handle typed datasets
             DataSet ds = (objectType == typeof(DataSet))
                 ? new DataSet()
-                : (DataSet)Activator.CreateInstance(objectType);
+                : (DataSet)Activator.CreateInstance(objectType)!;
 
             DataTableConverter converter = new DataTableConverter();
 
@@ -92,7 +96,7 @@ namespace Newtonsoft.Json.Converters
 
             while (reader.TokenType == JsonToken.PropertyName)
             {
-                DataTable dt = ds.Tables[(string)reader.Value!];
+                DataTable? dt = ds.Tables[(string)reader.Value!];
                 bool exists = (dt != null);
 
                 dt = (DataTable)converter.ReadJson(reader, typeof(DataTable), dt, serializer)!;

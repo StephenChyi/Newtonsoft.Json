@@ -198,6 +198,7 @@ namespace Newtonsoft.Json.Utilities
             return GetTypeCode(t, out _);
         }
 
+        [UnconditionalSuppressMessage("AotAnalysis", "IL3050", Justification = "Nullable<T> instantiated over primitive types are kept by TypeCodeMap")]
         public static PrimitiveTypeCode GetTypeCode(Type t, out bool isEnum)
         {
             if (TypeCodeMap.TryGetValue(t, out PrimitiveTypeCode typeCode))
@@ -215,7 +216,7 @@ namespace Newtonsoft.Json.Utilities
             // performance?
             if (ReflectionUtils.IsNullableType(t))
             {
-                Type nonNullable = Nullable.GetUnderlyingType(t);
+                Type nonNullable = Nullable.GetUnderlyingType(t)!;
                 if (nonNullable.IsEnum())
                 {
                     Type nullableUnderlyingType = typeof(Nullable<>).MakeGenericType(Enum.GetUnderlyingType(nonNullable));
@@ -256,14 +257,21 @@ namespace Newtonsoft.Json.Utilities
 #endif
         }
 
-        private static readonly ThreadSafeStore<StructMultiKey<Type, Type>, Func<object?, object?>?> CastConverters =
-            new ThreadSafeStore<StructMultiKey<Type, Type>, Func<object?, object?>?>(CreateCastConverter);
+        [RequiresUnreferencedCode(MiscellaneousUtils.TrimWarning)]
+        [RequiresDynamicCode(MiscellaneousUtils.AotWarning)]
+        static class CastConverters
+        {
+            public static readonly ThreadSafeStore<StructMultiKey<Type, Type>, Func<object?, object?>?> Instance =
+                new ThreadSafeStore<StructMultiKey<Type, Type>, Func<object?, object?>?>(CreateCastConverter);
+        }
 
+        [RequiresUnreferencedCode(MiscellaneousUtils.TrimWarning)]
+        [RequiresDynamicCode(MiscellaneousUtils.AotWarning)]
         private static Func<object?, object?>? CreateCastConverter(StructMultiKey<Type, Type> t)
         {
             Type initialType = t.Value1;
             Type targetType = t.Value2;
-            MethodInfo castMethodInfo = targetType.GetMethod("op_Implicit", new[] { initialType })
+            MethodInfo? castMethodInfo = targetType.GetMethod("op_Implicit", new[] { initialType })
                 ?? targetType.GetMethod("op_Explicit", new[] { initialType });
 
             if (castMethodInfo == null)
@@ -369,6 +377,8 @@ namespace Newtonsoft.Json.Utilities
             NoValidConversion = 3
         }
 
+        [RequiresUnreferencedCode(MiscellaneousUtils.TrimWarning)]
+        [RequiresDynamicCode(MiscellaneousUtils.AotWarning)]
         public static object Convert(object initialValue, CultureInfo culture, Type targetType)
         {
             switch (TryConvertInternal(initialValue, culture, targetType, out object? value))
@@ -386,6 +396,8 @@ namespace Newtonsoft.Json.Utilities
             }
         }
 
+        [RequiresUnreferencedCode(MiscellaneousUtils.TrimWarning)]
+        [RequiresDynamicCode(MiscellaneousUtils.AotWarning)]
         private static bool TryConvert(object? initialValue, CultureInfo culture, Type targetType, out object? value)
         {
             try
@@ -405,6 +417,8 @@ namespace Newtonsoft.Json.Utilities
             }
         }
 
+        [RequiresUnreferencedCode(MiscellaneousUtils.TrimWarning)]
+        [RequiresDynamicCode(MiscellaneousUtils.AotWarning)]
         private static ConvertResult TryConvertInternal(object? initialValue, CultureInfo culture, Type targetType, out object? value)
         {
             if (initialValue == null)
@@ -414,7 +428,7 @@ namespace Newtonsoft.Json.Utilities
 
             if (ReflectionUtils.IsNullableType(targetType))
             {
-                targetType = Nullable.GetUnderlyingType(targetType);
+                targetType = Nullable.GetUnderlyingType(targetType)!;
             }
 
             Type initialType = initialValue.GetType();
@@ -432,7 +446,7 @@ namespace Newtonsoft.Json.Utilities
                 {
                     if (initialValue is string)
                     {
-                        value = Enum.Parse(targetType, initialValue.ToString(), true);
+                        value = Enum.Parse(targetType, initialValue.ToString()!, true);
                         return ConvertResult.Success;
                     }
                     else if (IsInteger(initialValue))
@@ -503,6 +517,18 @@ namespace Newtonsoft.Json.Utilities
                     value = Type.GetType(s, true);
                     return ConvertResult.Success;
                 }
+#if HAVE_DATE_ONLY
+                if (targetType == typeof(DateOnly))
+                {
+                    value = DateOnly.ParseExact(s, "yyyy'-'MM'-'dd", CultureInfo.InvariantCulture);
+                    return ConvertResult.Success;
+                }
+                if (targetType == typeof(TimeOnly))
+                {
+                    value = TimeOnly.Parse(s, CultureInfo.InvariantCulture);
+                    return ConvertResult.Success;
+                }
+#endif
             }
 
 #if HAVE_BIG_INTEGER
@@ -575,6 +601,8 @@ namespace Newtonsoft.Json.Utilities
         /// The converted type. If conversion was unsuccessful, the initial value
         /// is returned if assignable to the target type.
         /// </returns>
+        [RequiresUnreferencedCode(MiscellaneousUtils.TrimWarning)]
+        [RequiresDynamicCode(MiscellaneousUtils.AotWarning)]
         public static object? ConvertOrCast(object? initialValue, CultureInfo culture, Type targetType)
         {
             if (targetType == typeof(object))
@@ -595,6 +623,8 @@ namespace Newtonsoft.Json.Utilities
             return EnsureTypeAssignable(initialValue, ReflectionUtils.GetObjectType(initialValue)!, targetType);
         }
 #endregion
+        [RequiresUnreferencedCode(MiscellaneousUtils.TrimWarning)]
+        [RequiresDynamicCode(MiscellaneousUtils.AotWarning)]
 
         private static object? EnsureTypeAssignable(object? value, Type initialType, Type targetType)
         {
@@ -607,7 +637,7 @@ namespace Newtonsoft.Json.Utilities
                     return value;
                 }
 
-                Func<object?, object?>? castConverter = CastConverters.Get(new StructMultiKey<Type, Type>(valueType, targetType));
+                Func<object?, object?>? castConverter = CastConverters.Instance.Get(new StructMultiKey<Type, Type>(valueType, targetType));
                 if (castConverter != null)
                 {
                     return castConverter(value);

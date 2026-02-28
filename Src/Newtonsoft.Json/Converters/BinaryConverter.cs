@@ -29,6 +29,7 @@ using System.Globalization;
 using Newtonsoft.Json.Utilities;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Diagnostics.CodeAnalysis;
 #if HAVE_ADO_NET
 using System.Data.SqlTypes;
 #endif
@@ -38,6 +39,8 @@ namespace Newtonsoft.Json.Converters
     /// <summary>
     /// Converts a binary value to and from a base 64 string value.
     /// </summary>
+    [RequiresUnreferencedCode(MiscellaneousUtils.TrimWarning)]
+    [RequiresDynamicCode(MiscellaneousUtils.AotWarning)]
     public class BinaryConverter : JsonConverter
     {
 #if HAVE_LINQ
@@ -126,7 +129,7 @@ namespace Newtonsoft.Json.Converters
             {
                 // current token is already at base64 string
                 // unable to call ReadAsBytes so do it the old fashion way
-                string encodedData = reader.Value!.ToString();
+                string encodedData = reader.Value!.ToString()!;
                 data = Convert.FromBase64String(encodedData);
             }
             else
@@ -135,7 +138,7 @@ namespace Newtonsoft.Json.Converters
             }
 
             Type t = (ReflectionUtils.IsNullableType(objectType))
-                ? Nullable.GetUnderlyingType(objectType)
+                ? Nullable.GetUnderlyingType(objectType)!
                 : objectType;
 
 #if HAVE_LINQ

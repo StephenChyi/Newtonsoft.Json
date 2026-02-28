@@ -58,6 +58,8 @@ namespace Newtonsoft.Json.Serialization
         {
         }
 
+        [RequiresUnreferencedCode(MiscellaneousUtils.TrimWarning)]
+        [RequiresDynamicCode(MiscellaneousUtils.AotWarning)]
         public void Serialize(JsonWriter jsonWriter, object? value, Type? objectType)
         {
             if (jsonWriter == null)
@@ -104,6 +106,8 @@ namespace Newtonsoft.Json.Serialization
             }
         }
 
+        [RequiresUnreferencedCode(MiscellaneousUtils.TrimWarning)]
+        [RequiresDynamicCode(MiscellaneousUtils.AotWarning)]
         private JsonSerializerProxy GetInternalSerializer()
         {
             if (InternalSerializer == null)
@@ -151,6 +155,8 @@ namespace Newtonsoft.Json.Serialization
             JsonWriter.WriteValue(writer, contract.TypeCode, value);
         }
 
+        [RequiresUnreferencedCode(MiscellaneousUtils.TrimWarning)]
+        [RequiresDynamicCode(MiscellaneousUtils.AotWarning)]
         private void SerializeValue(JsonWriter writer, object? value, JsonContract? valueContract, JsonProperty? member, JsonContainerContract? containerContract, JsonProperty? containerProperty)
         {
             if (value == null)
@@ -394,12 +400,26 @@ namespace Newtonsoft.Json.Serialization
             }
         }
 
+        [RequiresUnreferencedCode(MiscellaneousUtils.TrimWarning)]
         internal static bool TryConvertToString(object value, Type type, [NotNullWhen(true)]out string? s)
         {
+#if HAVE_DATE_ONLY
+            if (value is DateOnly dateOnly)
+            {
+                s = dateOnly.ToString("yyyy'-'MM'-'dd", CultureInfo.InvariantCulture);
+                return true;
+            }
+            if (value is TimeOnly timeOnly)
+            {
+                s = timeOnly.ToString("HH':'mm':'ss.FFFFFFF", CultureInfo.InvariantCulture);
+                return true;
+            }
+#endif
+
 #if HAVE_TYPE_DESCRIPTOR
             if (JsonTypeReflector.CanTypeDescriptorConvertString(type, out TypeConverter converter))
             {
-                s = converter.ConvertToInvariantString(value);
+                s = converter.ConvertToInvariantString(value)!;
                 return true;
             }
 #endif
@@ -414,7 +434,7 @@ namespace Newtonsoft.Json.Serialization
 
             if (value is Type t)
             {
-                s = t.AssemblyQualifiedName;
+                s = t.AssemblyQualifiedName!;
                 return true;
             }
 
@@ -422,6 +442,7 @@ namespace Newtonsoft.Json.Serialization
             return false;
         }
 
+        [RequiresUnreferencedCode(MiscellaneousUtils.TrimWarning)]
         private void SerializeString(JsonWriter writer, object value, JsonStringContract contract)
         {
             OnSerializing(writer, contract, value);
@@ -452,6 +473,8 @@ namespace Newtonsoft.Json.Serialization
             contract.InvokeOnSerialized(value, Serializer._context);
         }
 
+        [RequiresUnreferencedCode(MiscellaneousUtils.TrimWarning)]
+        [RequiresDynamicCode(MiscellaneousUtils.AotWarning)]
         private void SerializeObject(JsonWriter writer, object value, JsonObjectContract contract, JsonProperty? member, JsonContainerContract? collectionContract, JsonProperty? containerProperty)
         {
             OnSerializing(writer, contract, value);
@@ -646,6 +669,8 @@ namespace Newtonsoft.Json.Serialization
             return ((value & flag) == flag);
         }
 
+        [RequiresUnreferencedCode(MiscellaneousUtils.TrimWarning)]
+        [RequiresDynamicCode(MiscellaneousUtils.AotWarning)]
         private void SerializeConvertable(JsonWriter writer, JsonConverter converter, object value, JsonContract contract, JsonContainerContract? collectionContract, JsonProperty? containerProperty)
         {
             if (ShouldWriteReference(value, null, contract, collectionContract, containerProperty))
@@ -677,6 +702,8 @@ namespace Newtonsoft.Json.Serialization
             }
         }
 
+        [RequiresUnreferencedCode(MiscellaneousUtils.TrimWarning)]
+        [RequiresDynamicCode(MiscellaneousUtils.AotWarning)]
         private void SerializeList(JsonWriter writer, IEnumerable values, JsonArrayContract contract, JsonProperty? member, JsonContainerContract? collectionContract, JsonProperty? containerProperty)
         {
             object underlyingList = values is IWrappedCollection wrappedCollection ? wrappedCollection.UnderlyingCollection : values;
@@ -740,6 +767,8 @@ namespace Newtonsoft.Json.Serialization
             OnSerialized(writer, contract, underlyingList);
         }
 
+        [RequiresUnreferencedCode(MiscellaneousUtils.TrimWarning)]
+        [RequiresDynamicCode(MiscellaneousUtils.AotWarning)]
         private void SerializeMultidimensionalArray(JsonWriter writer, Array values, JsonArrayContract contract, JsonProperty? member, JsonContainerContract? collectionContract, JsonProperty? containerProperty)
         {
             OnSerializing(writer, contract, values);
@@ -760,6 +789,8 @@ namespace Newtonsoft.Json.Serialization
             OnSerialized(writer, contract, values);
         }
 
+        [RequiresUnreferencedCode(MiscellaneousUtils.TrimWarning)]
+        [RequiresDynamicCode(MiscellaneousUtils.AotWarning)]
         private void SerializeMultidimensionalArray(JsonWriter writer, Array values, JsonArrayContract contract, JsonProperty? member, int initialDepth, int[] indices)
         {
             int dimension = indices.Length;
@@ -778,7 +809,7 @@ namespace Newtonsoft.Json.Serialization
 
                 if (isTopLevel)
                 {
-                    object value = values.GetValue(newIndices);
+                    object value = values.GetValue(newIndices)!;
 
                     try
                     {
@@ -853,8 +884,11 @@ namespace Newtonsoft.Json.Serialization
 #if HAVE_SECURITY_SAFE_CRITICAL_ATTRIBUTE
         [SecuritySafeCritical]
 #endif
+        [RequiresUnreferencedCode(MiscellaneousUtils.TrimWarning)]
+        [RequiresDynamicCode(MiscellaneousUtils.AotWarning)]
         private void SerializeISerializable(JsonWriter writer, ISerializable value, JsonISerializableContract contract, JsonProperty? member, JsonContainerContract? collectionContract, JsonProperty? containerProperty)
         {
+#pragma warning disable SYSLIB0050
             if (!JsonTypeReflector.FullyTrusted)
             {
                 string message = @"Type '{0}' implements ISerializable but cannot be serialized using the ISerializable interface because the current application is not fully trusted and ISerializable can expose secure data." + Environment.NewLine +
@@ -879,7 +913,7 @@ namespace Newtonsoft.Json.Serialization
                 if (ShouldWriteReference(serializationEntry.Value, null, valueContract, contract, member))
                 {
                     writer.WritePropertyName(serializationEntry.Name);
-                    WriteReference(writer, serializationEntry.Value);
+                    WriteReference(writer, serializationEntry.Value!);
                 }
                 else if (CheckForCircularReference(writer, serializationEntry.Value, null, valueContract, contract, member))
                 {
@@ -892,10 +926,13 @@ namespace Newtonsoft.Json.Serialization
 
             _serializeStack.RemoveAt(_serializeStack.Count - 1);
             OnSerialized(writer, contract, value);
+#pragma warning restore SYSLIB0050
         }
 #endif
 
 #if HAVE_DYNAMIC
+        [RequiresUnreferencedCode(MiscellaneousUtils.TrimWarning)]
+        [RequiresDynamicCode(MiscellaneousUtils.AotWarning)]
         private void SerializeDynamic(JsonWriter writer, IDynamicMetaObjectProvider value, JsonDynamicContract contract, JsonProperty? member, JsonContainerContract? collectionContract, JsonProperty? containerProperty)
         {
             OnSerializing(writer, contract, value);
@@ -980,6 +1017,7 @@ namespace Newtonsoft.Json.Serialization
         }
 #endif
 
+        [RequiresUnreferencedCode(MiscellaneousUtils.TrimWarning)]
         private bool ShouldWriteDynamicProperty(object? memberValue)
         {
             if (Serializer._nullValueHandling == NullValueHandling.Ignore && memberValue == null)
@@ -1040,6 +1078,8 @@ namespace Newtonsoft.Json.Serialization
             return false;
         }
 
+        [RequiresUnreferencedCode(MiscellaneousUtils.TrimWarning)]
+        [RequiresDynamicCode(MiscellaneousUtils.AotWarning)]
         private void SerializeDictionary(JsonWriter writer, IDictionary values, JsonDictionaryContract contract, JsonProperty? member, JsonContainerContract? collectionContract, JsonProperty? containerProperty)
         {
 #pragma warning disable CS8600, CS8602, CS8604
@@ -1124,6 +1164,7 @@ namespace Newtonsoft.Json.Serialization
 #pragma warning restore CS8600, CS8602, CS8604
         }
 
+        [RequiresUnreferencedCode(MiscellaneousUtils.TrimWarning)]
         private string GetPropertyName(JsonWriter writer, object name, JsonContract contract, out bool escape)
         {
             if (contract.ContractType == JsonContractType.Primitive)
@@ -1176,7 +1217,7 @@ namespace Newtonsoft.Json.Serialization
                             return enumName;
                         }
 
-                        return Convert.ToString(name, CultureInfo.InvariantCulture);
+                        return Convert.ToString(name, CultureInfo.InvariantCulture)!;
                     }
                 }
             }
@@ -1188,7 +1229,7 @@ namespace Newtonsoft.Json.Serialization
             else
             {
                 escape = true;
-                return name.ToString();
+                return name.ToString()!;
             }
         }
 

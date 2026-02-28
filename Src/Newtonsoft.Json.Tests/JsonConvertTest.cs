@@ -30,7 +30,7 @@ using System.Collections.ObjectModel;
 using System.Globalization;
 using System.IO;
 using Newtonsoft.Json.Schema;
-#if !(NET20 || NET35 || PORTABLE40 || PORTABLE) || NETSTANDARD1_3 || NETSTANDARD2_0
+#if !(NET20 || NET35 || PORTABLE40 || PORTABLE) || NETSTANDARD1_3 || NETSTANDARD2_0 || NET6_0_OR_GREATER
 using System.Numerics;
 #endif
 using System.Runtime.Serialization;
@@ -116,6 +116,17 @@ namespace Newtonsoft.Json.Tests
                 PopulateTestObject o = new PopulateTestObject();
                 JsonConvert.PopulateObject(json, o);
             }, "No JSON content found. Path '', line 0, position 0.");
+        }
+
+        [Test]
+        public void NoConstructorName() {
+            ExceptionAssert.Throws<JsonException>(
+                () => JsonConvert.DeserializeObject("[new \0("),
+                "Empty constructor name. Path '', line 1, position 6.");
+
+            ExceptionAssert.Throws<JsonException>(
+                () => JsonConvert.DeserializeObject("{'x':new \0("),
+                "Empty constructor name. Path 'x', line 1, position 10.");
         }
 
         [Test]
@@ -1139,7 +1150,7 @@ namespace Newtonsoft.Json.Tests
             writer.Flush();
         }
 
-#if !(NET20 || NET35 || PORTABLE40 || PORTABLE) || NETSTANDARD1_3 || NETSTANDARD2_0
+#if !(NET20 || NET35 || PORTABLE40 || PORTABLE) || NETSTANDARD1_3 || NETSTANDARD2_0 || NET6_0_OR_GREATER
         [Test]
         public void IntegerLengthOverflows()
         {

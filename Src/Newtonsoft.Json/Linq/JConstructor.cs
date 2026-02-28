@@ -26,6 +26,7 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.Diagnostics.CodeAnalysis;
 using Newtonsoft.Json.Utilities;
 using System.Globalization;
 
@@ -97,7 +98,13 @@ namespace Newtonsoft.Json.Linq
         /// </summary>
         /// <param name="other">A <see cref="JConstructor"/> object to copy from.</param>
         public JConstructor(JConstructor other)
-            : base(other)
+            : base(other, settings: null)
+        {
+            _name = other.Name;
+        }
+
+        internal JConstructor(JConstructor other, JsonCloneSettings? settings)
+            : base(other, settings)
         {
             _name = other.Name;
         }
@@ -147,9 +154,9 @@ namespace Newtonsoft.Json.Linq
             return (node is JConstructor c && _name == c.Name && ContentsEqual(c));
         }
 
-        internal override JToken CloneToken()
+        internal override JToken CloneToken(JsonCloneSettings? settings = null)
         {
-            return new JConstructor(this);
+            return new JConstructor(this, settings);
         }
 
         /// <summary>
@@ -157,6 +164,8 @@ namespace Newtonsoft.Json.Linq
         /// </summary>
         /// <param name="writer">A <see cref="JsonWriter"/> into which this method will write.</param>
         /// <param name="converters">A collection of <see cref="JsonConverter"/> which will be used when writing the token.</param>
+        [RequiresUnreferencedCode(MiscellaneousUtils.TrimWarning)]
+        [RequiresDynamicCode(MiscellaneousUtils.AotWarning)]
         public override void WriteTo(JsonWriter writer, params JsonConverter[] converters)
         {
             writer.WriteStartConstructor(_name!);
@@ -202,7 +211,13 @@ namespace Newtonsoft.Json.Linq
 
         internal override int GetDeepHashCode()
         {
-            return (_name?.GetHashCode() ?? 0) ^ ContentsHashCode();
+            int hash;
+#if HAVE_GETHASHCODE_STRING_COMPARISON
+            hash = _name?.GetHashCode(StringComparison.Ordinal) ?? 0;
+#else
+            hash = _name?.GetHashCode() ?? 0;
+#endif
+            return hash ^ ContentsHashCode();
         }
 
         /// <summary>

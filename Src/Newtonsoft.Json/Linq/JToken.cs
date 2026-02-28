@@ -80,6 +80,33 @@ namespace Newtonsoft.Json.Linq
         private static readonly JTokenType[] DateTimeTypes = new[] { JTokenType.Date, JTokenType.String, JTokenType.Comment, JTokenType.Raw };
         private static readonly JTokenType[] BytesTypes = new[] { JTokenType.Bytes, JTokenType.String, JTokenType.Comment, JTokenType.Raw, JTokenType.Integer };
 
+#if HAVE_APPCONTEXT
+        [FeatureSwitchDefinition("Newtonsoft.Json.Linq.JToken.SerializationIsSupported")]
+        [FeatureGuard(typeof(RequiresUnreferencedCodeAttribute))]
+        [FeatureGuard(typeof(RequiresDynamicCodeAttribute))]
+        internal static bool SerializationIsSupported => AppContext.TryGetSwitch("Newtonsoft.Json.Linq.JToken.SerializationIsSupported", out bool isSupported) ? isSupported : true;
+
+        internal const string SerializationNotSupportedMessage = "Newtonsoft.Json serialization is not compatible with trimming and has been disabled. Newtonsoft.Json.Linq.JToken.SerializationIsSupported is set to false.";
+
+#if HAVE_COMPONENT_MODEL
+        [FeatureSwitchDefinition("Newtonsoft.Json.Linq.JToken.ComponentModelIsSupported")]
+        [FeatureGuard(typeof(RequiresUnreferencedCodeAttribute))]
+        internal static bool ComponentModelIsSupported => AppContext.TryGetSwitch("Newtonsoft.Json.Linq.JToken.ComponentModelIsSupported", out bool isSupported) ? isSupported : true;
+
+        internal const string ComponentModelNotSupportedMessage = "Newtonsoft.Json support for System.ComponentModel is not compatible with trimming and has been disabled. Newtonsoft.Json.Linq.JToken.ComponentModelIsSupported is set to false.";
+#endif // HAVE_COMPONENT_MODEL
+
+#if HAVE_DYNAMIC
+        [FeatureSwitchDefinition("Newtonsoft.Json.Linq.JToken.DynamicIsSupported")]
+        [FeatureGuard(typeof(RequiresUnreferencedCodeAttribute))]
+        [FeatureGuard(typeof(RequiresDynamicCodeAttribute))]
+        internal static bool DynamicIsSupported => AppContext.TryGetSwitch("Newtonsoft.Json.Linq.JToken.DynamicIsSupported", out bool isSupported) ? isSupported : true;
+
+        internal const string DynamicNotSupportedMessage = "Newtonsoft.Json support for dynamic is not compatible with trimming and has been disabled. Newtonsoft.Json.Linq.JToken.DynamicIsSupported is set to false.";
+#endif // HAVE_DYNAMIC
+
+#endif // HAVE_APPCONTEXT
+
         /// <summary>
         /// Gets a comparer that can compare two tokens for value equality.
         /// </summary>
@@ -131,7 +158,7 @@ namespace Newtonsoft.Json.Linq
             }
         }
 
-        internal abstract JToken CloneToken();
+        internal abstract JToken CloneToken(JsonCloneSettings? settings);
         internal abstract bool DeepEquals(JToken node);
 
         /// <summary>
@@ -241,7 +268,7 @@ namespace Newtonsoft.Json.Linq
             }
 
             int index = _parent.IndexOfItem(this);
-            _parent.TryAddInternal(index + 1, content, false);
+            _parent.TryAddInternal(index + 1, content, false, copyAnnotations: true);
         }
 
         /// <summary>
@@ -256,7 +283,7 @@ namespace Newtonsoft.Json.Linq
             }
 
             int index = _parent.IndexOfItem(this);
-            _parent.TryAddInternal(index, content, false);
+            _parent.TryAddInternal(index, content, false, copyAnnotations: true);
         }
 
         /// <summary>
@@ -415,7 +442,20 @@ namespace Newtonsoft.Json.Linq
         /// Writes this token to a <see cref="JsonWriter"/>.
         /// </summary>
         /// <param name="writer">A <see cref="JsonWriter"/> into which this method will write.</param>
+        [UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "WriteTo without converters is safe.")]
+        [UnconditionalSuppressMessage("AOT", "IL3050", Justification = "WriteTo without converters is safe.")]
+        public void WriteTo(JsonWriter writer)
+        {
+            WriteTo(writer, CollectionUtils.ArrayEmpty<JsonConverter>());
+        }
+
+        /// <summary>
+        /// Writes this token to a <see cref="JsonWriter"/>.
+        /// </summary>
+        /// <param name="writer">A <see cref="JsonWriter"/> into which this method will write.</param>
         /// <param name="converters">A collection of <see cref="JsonConverter"/> which will be used when writing the token.</param>
+        [RequiresUnreferencedCode(MiscellaneousUtils.TrimWarning)]
+        [RequiresDynamicCode(MiscellaneousUtils.AotWarning)]
         public abstract void WriteTo(JsonWriter writer, params JsonConverter[] converters);
 
         /// <summary>
@@ -433,12 +473,34 @@ namespace Newtonsoft.Json.Linq
             return ToString(Formatting.Indented);
         }
 
+        // TODO: Make public in Newtonsoft.Json 14.0+
+        // See https://github.com/JamesNK/Newtonsoft.Json/issues/3084
+        /// <summary>
+        /// Returns the JSON for this token using the given formatting and converters.
+        /// </summary>
+        /// <param name="formatting">Indicates how the output should be formatted.</param>
+        /// <returns>The JSON for this token using the given formatting and converters.</returns>
+        private string ToString(Formatting formatting)
+        {
+            using (StringWriter sw = new StringWriter(CultureInfo.InvariantCulture))
+            {
+                JsonTextWriter jw = new JsonTextWriter(sw);
+                jw.Formatting = formatting;
+
+                WriteTo(jw);
+
+                return sw.ToString();
+            }
+        }
+
         /// <summary>
         /// Returns the JSON for this token using the given formatting and converters.
         /// </summary>
         /// <param name="formatting">Indicates how the output should be formatted.</param>
         /// <param name="converters">A collection of <see cref="JsonConverter"/>s which will be used when writing the token.</param>
         /// <returns>The JSON for this token using the given formatting and converters.</returns>
+        [RequiresUnreferencedCode(MiscellaneousUtils.TrimWarning)]
+        [RequiresDynamicCode(MiscellaneousUtils.AotWarning)]
         public string ToString(Formatting formatting, params JsonConverter[] converters)
         {
             using (StringWriter sw = new StringWriter(CultureInfo.InvariantCulture))
@@ -1333,7 +1395,7 @@ namespace Newtonsoft.Json.Linq
 
             if (v.Value is string)
             {
-                return Convert.FromBase64String(Convert.ToString(v.Value, CultureInfo.InvariantCulture));
+                return Convert.FromBase64String(Convert.ToString(v.Value, CultureInfo.InvariantCulture)!);
             }
 #if HAVE_BIG_INTEGER
             if (v.Value is BigInteger integer)
@@ -1368,7 +1430,7 @@ namespace Newtonsoft.Json.Linq
                 return new Guid(bytes);
             }
 
-            return (v.Value is Guid guid) ? guid : new Guid(Convert.ToString(v.Value, CultureInfo.InvariantCulture));
+            return (v.Value is Guid guid) ? guid : new Guid(Convert.ToString(v.Value, CultureInfo.InvariantCulture)!);
         }
 
         /// <summary>
@@ -1399,7 +1461,7 @@ namespace Newtonsoft.Json.Linq
                 return new Guid(bytes);
             }
 
-            return (v.Value is Guid guid) ? guid : new Guid(Convert.ToString(v.Value, CultureInfo.InvariantCulture));
+            return (v.Value is Guid guid) ? guid : new Guid(Convert.ToString(v.Value, CultureInfo.InvariantCulture)!);
         }
 
         /// <summary>
@@ -1415,7 +1477,7 @@ namespace Newtonsoft.Json.Linq
                 throw new ArgumentException("Can not convert {0} to TimeSpan.".FormatWith(CultureInfo.InvariantCulture, GetType(value)));
             }
 
-            return (v.Value is TimeSpan span) ? span : ConvertUtils.ParseTimeSpan(Convert.ToString(v.Value, CultureInfo.InvariantCulture));
+            return (v.Value is TimeSpan span) ? span : ConvertUtils.ParseTimeSpan(Convert.ToString(v.Value, CultureInfo.InvariantCulture)!);
         }
 
         /// <summary>
@@ -1441,7 +1503,7 @@ namespace Newtonsoft.Json.Linq
                 return null;
             }
 
-            return (v.Value is TimeSpan span) ? span : ConvertUtils.ParseTimeSpan(Convert.ToString(v.Value, CultureInfo.InvariantCulture));
+            return (v.Value is TimeSpan span) ? span : ConvertUtils.ParseTimeSpan(Convert.ToString(v.Value, CultureInfo.InvariantCulture)!);
         }
 
         /// <summary>
@@ -1467,7 +1529,7 @@ namespace Newtonsoft.Json.Linq
                 return null;
             }
 
-            return (v.Value is Uri uri) ? uri : new Uri(Convert.ToString(v.Value, CultureInfo.InvariantCulture));
+            return (v.Value is Uri uri) ? uri : new Uri(Convert.ToString(v.Value, CultureInfo.InvariantCulture)!);
         }
 
 #if HAVE_BIG_INTEGER
@@ -1889,6 +1951,8 @@ namespace Newtonsoft.Json.Linq
             return new JTokenReader(this);
         }
 
+        [RequiresUnreferencedCode(MiscellaneousUtils.TrimWarning)]
+        [RequiresDynamicCode(MiscellaneousUtils.AotWarning)]
         internal static JToken FromObjectInternal(object o, JsonSerializer jsonSerializer)
         {
             ValidationUtils.ArgumentNotNull(o, nameof(o));
@@ -1909,6 +1973,8 @@ namespace Newtonsoft.Json.Linq
         /// </summary>
         /// <param name="o">The object that will be used to create <see cref="JToken"/>.</param>
         /// <returns>A <see cref="JToken"/> with the value of the specified object.</returns>
+        [RequiresUnreferencedCode(MiscellaneousUtils.TrimWarning)]
+        [RequiresDynamicCode(MiscellaneousUtils.AotWarning)]
         public static JToken FromObject(object o)
         {
             return FromObjectInternal(o, JsonSerializer.CreateDefault());
@@ -1920,6 +1986,8 @@ namespace Newtonsoft.Json.Linq
         /// <param name="o">The object that will be used to create <see cref="JToken"/>.</param>
         /// <param name="jsonSerializer">The <see cref="JsonSerializer"/> that will be used when reading the object.</param>
         /// <returns>A <see cref="JToken"/> with the value of the specified object.</returns>
+        [RequiresUnreferencedCode(MiscellaneousUtils.TrimWarning)]
+        [RequiresDynamicCode(MiscellaneousUtils.AotWarning)]
         public static JToken FromObject(object o, JsonSerializer jsonSerializer)
         {
             return FromObjectInternal(o, jsonSerializer);
@@ -1930,6 +1998,8 @@ namespace Newtonsoft.Json.Linq
         /// </summary>
         /// <typeparam name="T">The object type that the token will be deserialized to.</typeparam>
         /// <returns>The new object created from the JSON value.</returns>
+        [RequiresUnreferencedCode(MiscellaneousUtils.TrimWarning)]
+        [RequiresDynamicCode(MiscellaneousUtils.AotWarning)]
         public T? ToObject<T>()
         {
             return (T?)ToObject(typeof(T));
@@ -1940,6 +2010,8 @@ namespace Newtonsoft.Json.Linq
         /// </summary>
         /// <param name="objectType">The object type that the token will be deserialized to.</param>
         /// <returns>The new object created from the JSON value.</returns>
+        [RequiresUnreferencedCode(MiscellaneousUtils.TrimWarning)]
+        [RequiresDynamicCode(MiscellaneousUtils.AotWarning)]
         public object? ToObject(Type objectType)
         {
             if (JsonConvert.DefaultSettings == null)
@@ -1957,15 +2029,15 @@ namespace Newtonsoft.Json.Linq
                         }
                         catch (Exception ex)
                         {
-                            Type enumType = objectType.IsEnum() ? objectType : Nullable.GetUnderlyingType(objectType);
+                            Type enumType = objectType.IsEnum() ? objectType : Nullable.GetUnderlyingType(objectType)!;
                             throw new ArgumentException("Could not convert '{0}' to {1}.".FormatWith(CultureInfo.InvariantCulture, (string?)this, enumType.Name), ex);
                         }
                     }
 
                     if (Type == JTokenType.Integer)
                     {
-                        Type enumType = objectType.IsEnum() ? objectType : Nullable.GetUnderlyingType(objectType);
-                        return Enum.ToObject(enumType, ((JValue)this).Value);
+                        Type enumType = objectType.IsEnum() ? objectType : Nullable.GetUnderlyingType(objectType)!;
+                        return Enum.ToObject(enumType, ((JValue)this).Value!);
                     }
                 }
 
@@ -2063,6 +2135,8 @@ namespace Newtonsoft.Json.Linq
         /// <typeparam name="T">The object type that the token will be deserialized to.</typeparam>
         /// <param name="jsonSerializer">The <see cref="JsonSerializer"/> that will be used when creating the object.</param>
         /// <returns>The new object created from the JSON value.</returns>
+        [RequiresUnreferencedCode(MiscellaneousUtils.TrimWarning)]
+        [RequiresDynamicCode(MiscellaneousUtils.AotWarning)]
         public T? ToObject<T>(JsonSerializer jsonSerializer)
         {
             return (T?)ToObject(typeof(T), jsonSerializer);
@@ -2074,6 +2148,8 @@ namespace Newtonsoft.Json.Linq
         /// <param name="objectType">The object type that the token will be deserialized to.</param>
         /// <param name="jsonSerializer">The <see cref="JsonSerializer"/> that will be used when creating the object.</param>
         /// <returns>The new object created from the JSON value.</returns>
+        [RequiresUnreferencedCode(MiscellaneousUtils.TrimWarning)]
+        [RequiresDynamicCode(MiscellaneousUtils.AotWarning)]
         public object? ToObject(Type? objectType, JsonSerializer jsonSerializer)
         {
             ValidationUtils.ArgumentNotNull(jsonSerializer, nameof(jsonSerializer));
@@ -2414,7 +2490,15 @@ namespace Newtonsoft.Json.Linq
         /// </returns>
         protected virtual DynamicMetaObject GetMetaObject(Expression parameter)
         {
+#if HAVE_APPCONTEXT
+            if (!DynamicIsSupported)
+            {
+                throw new NotSupportedException(DynamicNotSupportedMessage);
+            }
+#endif
+#pragma warning disable IL2026, IL3050
             return new DynamicProxyMetaObject<JToken>(parameter, this, new DynamicProxy<JToken>());
+#pragma warning restore IL2026, IL3050
         }
 
         /// <summary>
@@ -2443,7 +2527,17 @@ namespace Newtonsoft.Json.Linq
         /// <returns>A new instance of the <see cref="JToken"/>.</returns>
         public JToken DeepClone()
         {
-            return CloneToken();
+            return CloneToken(settings: null);
+        }
+
+        /// <summary>
+        /// Creates a new instance of the <see cref="JToken"/>. All child tokens are recursively cloned.
+        /// </summary>
+        /// <param name="settings">A <see cref="JsonCloneSettings"/> object to configure cloning settings.</param>
+        /// <returns>A new instance of the <see cref="JToken"/>.</returns>
+        public JToken DeepClone(JsonCloneSettings settings)
+        {
+            return CloneToken(settings);
         }
 
         /// <summary>

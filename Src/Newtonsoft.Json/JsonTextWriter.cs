@@ -325,6 +325,7 @@ namespace Newtonsoft.Json
 
             int newLineLen = SetIndentChars();
 
+            MiscellaneousUtils.Assert(_indentChars != null);
             _writer.Write(_indentChars, 0, newLineLen + Math.Min(currentIndentCount, IndentCharBufferSize));
 
             while ((currentIndentCount -= IndentCharBufferSize) > 0)
@@ -637,6 +638,7 @@ namespace Newtonsoft.Json
             {
                 int length = WriteValueToBuffer(value);
 
+                MiscellaneousUtils.Assert(_writeBuffer != null);
                 _writer.Write(_writeBuffer, 0, length);
             }
             else
@@ -692,6 +694,7 @@ namespace Newtonsoft.Json
             {
                 int length = WriteValueToBuffer(value);
 
+                MiscellaneousUtils.Assert(_writeBuffer != null);
                 _writer.Write(_writeBuffer, 0, length);
             }
             else
@@ -781,10 +784,25 @@ namespace Newtonsoft.Json
         public override void WriteComment(string? text)
         {
             InternalWriteComment();
-
-            _writer.Write("/*");
-            _writer.Write(text);
-            _writer.Write("*/");
+            
+            // if text contains "*/" then it must have been a line comment
+            if (text != null && text.IndexOf("*/", StringComparison.Ordinal) > -1)
+            {
+                // each line must be emitted separately
+                var parts = text.Split('\n');
+                foreach (var part in parts)
+                {
+                    _writer.Write("//");
+                    _writer.Write(part);
+                    _writer.Write("\n");
+                }
+            }
+            else
+            {
+                _writer.Write("/*");
+                _writer.Write(text);
+                _writer.Write("*/");
+            }
         }
 
         /// <summary>
@@ -829,6 +847,8 @@ namespace Newtonsoft.Json
             else
             {
                 int length = WriteNumberToBuffer(value, negative);
+
+                MiscellaneousUtils.Assert(_writeBuffer != null);
                 _writer.Write(_writeBuffer, 0, length);
             }
         }
@@ -887,6 +907,8 @@ namespace Newtonsoft.Json
             else
             {
                 int length = WriteNumberToBuffer(value, negative);
+
+                MiscellaneousUtils.Assert(_writeBuffer != null);
                 _writer.Write(_writeBuffer, 0, length);
             }
         }

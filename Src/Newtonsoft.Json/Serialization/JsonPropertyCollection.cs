@@ -71,6 +71,7 @@ namespace Newtonsoft.Json.Serialization
         /// Adds a <see cref="JsonProperty"/> object.
         /// </summary>
         /// <param name="property">The property to add to the collection.</param>
+        [RequiresUnreferencedCode(MiscellaneousUtils.TrimWarning)]
         public void AddProperty(JsonProperty property)
         {
             MiscellaneousUtils.Assert(property.PropertyName != null);
@@ -145,7 +146,7 @@ namespace Newtonsoft.Json.Serialization
             return property;
         }
 
-        private bool TryGetValue(string key, [NotNullWhen(true)]out JsonProperty? item)
+        private bool TryGetProperty(string key, [NotNullWhen(true)]out JsonProperty? item)
         {
             if (Dictionary == null)
             {
@@ -167,7 +168,7 @@ namespace Newtonsoft.Json.Serialization
             // KeyedCollection has an ordinal comparer
             if (comparisonType == StringComparison.Ordinal)
             {
-                if (TryGetValue(propertyName, out JsonProperty? property))
+                if (TryGetProperty(propertyName, out JsonProperty? property))
                 {
                     return property;
                 }

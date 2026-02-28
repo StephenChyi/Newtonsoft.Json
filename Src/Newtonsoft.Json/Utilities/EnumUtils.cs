@@ -48,6 +48,7 @@ namespace Newtonsoft.Json.Utilities
 
         private static readonly ThreadSafeStore<StructMultiKey<Type, NamingStrategy?>, EnumInfo> ValuesAndNamesPerEnum = new ThreadSafeStore<StructMultiKey<Type, NamingStrategy?>, EnumInfo>(InitializeValuesAndNames);
 
+        [UnconditionalSuppressMessage("TrimAnalysis", "IL2080", Justification = "Enum fields are not trimmed")]
         private static EnumInfo InitializeValuesAndNames(StructMultiKey<Type, NamingStrategy?> key)
         {
             Type enumType = key.Value1;
@@ -60,11 +61,11 @@ namespace Newtonsoft.Json.Utilities
             {
                 string name = names[i];
                 FieldInfo f = enumType.GetField(name, BindingFlags.NonPublic | BindingFlags.Public | BindingFlags.Static)!;
-                values[i] = ToUInt64(f.GetValue(null));
+                values[i] = ToUInt64(f.GetValue(null)!);
 
                 string resolvedName;
 #if HAVE_DATA_CONTRACTS
-                string specifiedName = f.GetCustomAttributes(typeof(EnumMemberAttribute), true)
+                string? specifiedName = f.GetCustomAttributes(typeof(EnumMemberAttribute), true)
                          .Cast<EnumMemberAttribute>()
                          .Select(a => a.Value)
                          .SingleOrDefault();

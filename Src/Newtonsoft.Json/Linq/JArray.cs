@@ -26,9 +26,13 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.Diagnostics.CodeAnalysis;
 using Newtonsoft.Json.Utilities;
 using System.IO;
 using System.Globalization;
+#if NET6_0_OR_GREATER
+using System.Linq;
+#endif
 
 namespace Newtonsoft.Json.Linq
 {
@@ -66,7 +70,12 @@ namespace Newtonsoft.Json.Linq
         /// </summary>
         /// <param name="other">A <see cref="JArray"/> object to copy from.</param>
         public JArray(JArray other)
-            : base(other)
+            : base(other, settings: null)
+        {
+        }
+
+        internal JArray(JArray other, JsonCloneSettings? settings)
+            : base(other, settings)
         {
         }
 
@@ -93,9 +102,9 @@ namespace Newtonsoft.Json.Linq
             return (node is JArray t && ContentsEqual(t));
         }
 
-        internal override JToken CloneToken()
+        internal override JToken CloneToken(JsonCloneSettings? settings = null)
         {
-            return new JArray(this);
+            return new JArray(this, settings);
         }
 
         /// <summary>
@@ -183,6 +192,8 @@ namespace Newtonsoft.Json.Linq
         /// </summary>
         /// <param name="o">The object that will be used to create <see cref="JArray"/>.</param>
         /// <returns>A <see cref="JArray"/> with the values of the specified object.</returns>
+        [RequiresUnreferencedCode(MiscellaneousUtils.TrimWarning)]
+        [RequiresDynamicCode(MiscellaneousUtils.AotWarning)]
         public new static JArray FromObject(object o)
         {
             return FromObject(o, JsonSerializer.CreateDefault());
@@ -194,6 +205,8 @@ namespace Newtonsoft.Json.Linq
         /// <param name="o">The object that will be used to create <see cref="JArray"/>.</param>
         /// <param name="jsonSerializer">The <see cref="JsonSerializer"/> that will be used to read the object.</param>
         /// <returns>A <see cref="JArray"/> with the values of the specified object.</returns>
+        [RequiresUnreferencedCode(MiscellaneousUtils.TrimWarning)]
+        [RequiresDynamicCode(MiscellaneousUtils.AotWarning)]
         public new static JArray FromObject(object o, JsonSerializer jsonSerializer)
         {
             JToken token = FromObjectInternal(o, jsonSerializer);
@@ -211,6 +224,8 @@ namespace Newtonsoft.Json.Linq
         /// </summary>
         /// <param name="writer">A <see cref="JsonWriter"/> into which this method will write.</param>
         /// <param name="converters">A collection of <see cref="JsonConverter"/> which will be used when writing the token.</param>
+        [RequiresUnreferencedCode(MiscellaneousUtils.TrimWarning)]
+        [RequiresDynamicCode(MiscellaneousUtils.AotWarning)]
         public override void WriteTo(JsonWriter writer, params JsonConverter[] converters)
         {
             writer.WriteStartArray();
@@ -233,23 +248,36 @@ namespace Newtonsoft.Json.Linq
             {
                 ValidationUtils.ArgumentNotNull(key, nameof(key));
 
-                if (!(key is int))
+                switch (key)
                 {
-                    throw new ArgumentException("Accessed JArray values with invalid key value: {0}. Int32 array index expected.".FormatWith(CultureInfo.InvariantCulture, MiscellaneousUtils.ToString(key)));
+                    case int intKey:
+                        return GetItem(intKey);
+#if NET6_0_OR_GREATER
+                    case Index indexKey:
+                        return GetItem(indexKey.GetOffset(Count));
+#endif
+                    default:
+                        throw new ArgumentException("Accessed JArray values with invalid key value: {0}. Int32 array index expected.".FormatWith(CultureInfo.InvariantCulture, MiscellaneousUtils.ToString(key)));
                 }
 
-                return GetItem((int)key);
             }
             set
             {
                 ValidationUtils.ArgumentNotNull(key, nameof(key));
 
-                if (!(key is int))
+                switch (key)
                 {
-                    throw new ArgumentException("Set JArray values with invalid key value: {0}. Int32 array index expected.".FormatWith(CultureInfo.InvariantCulture, MiscellaneousUtils.ToString(key)));
+                    case int intKey:
+                        SetItem(intKey, value);
+                        return;
+#if NET6_0_OR_GREATER
+                    case Index indexKey:
+                        SetItem(indexKey.GetOffset(Count), value);
+                        return;
+#endif
+                    default:
+                        throw new ArgumentException("Set JArray values with invalid key value: {0}. Int32 array index expected.".FormatWith(CultureInfo.InvariantCulture, MiscellaneousUtils.ToString(key)));
                 }
-
-                SetItem((int)key, value);
             }
         }
 
@@ -309,7 +337,7 @@ namespace Newtonsoft.Json.Linq
         /// </exception>
         public void Insert(int index, JToken item)
         {
-            InsertItem(index, item, false);
+            InsertItem(index, item, false, copyAnnotations: true);
         }
 
         /// <summary>

@@ -33,6 +33,9 @@ using System.Security;
 using System.Security.Permissions;
 #endif
 using Newtonsoft.Json.Utilities;
+using System.Runtime.CompilerServices;
+using System.Diagnostics.CodeAnalysis;
+
 #if !HAVE_LINQ
 using Newtonsoft.Json.Utilities.LinqBridge;
 #else
@@ -58,20 +61,34 @@ namespace Newtonsoft.Json.Serialization
 
         public const string ConcurrentDictionaryTypeName = "System.Collections.Concurrent.ConcurrentDictionary`2";
 
-        private static readonly ThreadSafeStore<Type, Func<object[]?, object>> CreatorCache = 
-            new ThreadSafeStore<Type, Func<object[]?, object>>(GetCreator);
+        [RequiresUnreferencedCode(MiscellaneousUtils.TrimWarning)]
+        [RequiresDynamicCode(MiscellaneousUtils.AotWarning)]
+        private static class CreatorCache
+        {
+            internal static readonly ThreadSafeStore<Type, Func<object[]?, object>> Instance = 
+                new ThreadSafeStore<Type, Func<object[]?, object>>(GetCreator);
+        }
 
 #if !(NET20 || DOTNET)
-        private static readonly ThreadSafeStore<Type, Type?> AssociatedMetadataTypesCache = new ThreadSafeStore<Type, Type?>(GetAssociateMetadataTypeFromAttribute);
+        [RequiresUnreferencedCode(MiscellaneousUtils.TrimWarning)]
+        [RequiresDynamicCode(MiscellaneousUtils.AotWarning)]
+        private static class AssociatedMetadataTypesCache
+        {
+            internal static readonly ThreadSafeStore<Type, Type?> Instance = new ThreadSafeStore<Type, Type?>(GetAssociateMetadataTypeFromAttribute);
+        }
+
         private static ReflectionObject? _metadataTypeAttributeReflectionObject;
 #endif
 
+        [RequiresUnreferencedCode(MiscellaneousUtils.TrimWarning)]
+        [RequiresDynamicCode(MiscellaneousUtils.AotWarning)]
         public static T? GetCachedAttribute<T>(object attributeProvider) where T : Attribute
         {
             return CachedAttributeGetter<T>.GetAttribute(attributeProvider);
         }
 
 #if HAVE_TYPE_DESCRIPTOR
+        [RequiresUnreferencedCode(MiscellaneousUtils.TrimWarning)]
         public static bool CanTypeDescriptorConvertString(Type type, out TypeConverter typeConverter)
         {
             typeConverter = TypeDescriptor.GetConverter(type);
@@ -84,7 +101,7 @@ namespace Newtonsoft.Json.Serialization
                 if (!string.Equals(converterType.FullName, "System.ComponentModel.ComponentConverter", StringComparison.Ordinal)
                     && !string.Equals(converterType.FullName, "System.ComponentModel.ReferenceConverter", StringComparison.Ordinal)
                     && !string.Equals(converterType.FullName, "System.Windows.Forms.Design.DataSourceConverter", StringComparison.Ordinal)
-                    && converterType != typeof(TypeConverter))
+                    && converterType != typeof(TypeConverter)) 
                 {
                     return typeConverter.CanConvertTo(typeof(string));
                 }
@@ -96,10 +113,12 @@ namespace Newtonsoft.Json.Serialization
 #endif
 
 #if HAVE_DATA_CONTRACTS
+        [RequiresUnreferencedCode(MiscellaneousUtils.TrimWarning)]
+        [RequiresDynamicCode(MiscellaneousUtils.AotWarning)]
         public static DataContractAttribute? GetDataContractAttribute(Type type)
         {
             // DataContractAttribute does not have inheritance
-            Type currentType = type;
+            Type? currentType = type;
 
             while (currentType != null)
             {
@@ -115,6 +134,8 @@ namespace Newtonsoft.Json.Serialization
             return null;
         }
 
+        [RequiresUnreferencedCode(MiscellaneousUtils.TrimWarning)]
+        [RequiresDynamicCode(MiscellaneousUtils.AotWarning)]
         public static DataMemberAttribute? GetDataMemberAttribute(MemberInfo memberInfo)
         {
             // DataMemberAttribute does not have inheritance
@@ -132,11 +153,11 @@ namespace Newtonsoft.Json.Serialization
             {
                 if (propertyInfo.IsVirtual())
                 {
-                    Type currentType = propertyInfo.DeclaringType;
+                    Type? currentType = propertyInfo.DeclaringType;
 
                     while (result == null && currentType != null)
                     {
-                        PropertyInfo baseProperty = (PropertyInfo)ReflectionUtils.GetMemberInfoFromType(currentType, propertyInfo);
+                        PropertyInfo? baseProperty = (PropertyInfo?)ReflectionUtils.GetMemberInfoFromType(currentType, propertyInfo);
                         if (baseProperty != null && baseProperty.IsVirtual())
                         {
                             result = CachedAttributeGetter<DataMemberAttribute>.GetAttribute(baseProperty);
@@ -151,6 +172,8 @@ namespace Newtonsoft.Json.Serialization
         }
 #endif
 
+        [RequiresUnreferencedCode(MiscellaneousUtils.TrimWarning)]
+        [RequiresDynamicCode(MiscellaneousUtils.AotWarning)]
         public static MemberSerialization GetObjectMemberSerialization(Type objectType, bool ignoreSerializableAttribute)
         {
             JsonObjectAttribute? objectAttribute = GetCachedAttribute<JsonObjectAttribute>(objectType);
@@ -178,13 +201,15 @@ namespace Newtonsoft.Json.Serialization
             return MemberSerialization.OptOut;
         }
 
+        [RequiresUnreferencedCode(MiscellaneousUtils.TrimWarning)]
+        [RequiresDynamicCode(MiscellaneousUtils.AotWarning)]
         public static JsonConverter? GetJsonConverter(object attributeProvider)
         {
             JsonConverterAttribute? converterAttribute = GetCachedAttribute<JsonConverterAttribute>(attributeProvider);
 
             if (converterAttribute != null)
             {
-                Func<object[]?, object> creator = CreatorCache.Get(converterAttribute.ConverterType);
+                Func<object[]?, object> creator = CreatorCache.Instance.Get(converterAttribute.ConverterType);
                 if (creator != null)
                 {
                     return (JsonConverter)creator(converterAttribute.ConverterParameters);
@@ -200,18 +225,24 @@ namespace Newtonsoft.Json.Serialization
         /// <param name="converterType">The <see cref="JsonConverter"/> type to create.</param>
         /// <param name="args">Optional arguments to pass to an initializing constructor of the JsonConverter.
         /// If <c>null</c>, the default constructor is used.</param>
+        [RequiresUnreferencedCode(MiscellaneousUtils.TrimWarning)]
+        [RequiresDynamicCode(MiscellaneousUtils.AotWarning)]
         public static JsonConverter CreateJsonConverterInstance(Type converterType, object[]? args)
         {
-            Func<object[]?, object> converterCreator = CreatorCache.Get(converterType);
+            Func<object[]?, object> converterCreator = CreatorCache.Instance.Get(converterType);
             return (JsonConverter)converterCreator(args);
         }
 
+        [RequiresUnreferencedCode(MiscellaneousUtils.TrimWarning)]
+        [RequiresDynamicCode(MiscellaneousUtils.AotWarning)]
         public static NamingStrategy CreateNamingStrategyInstance(Type namingStrategyType, object[]? args)
         {
-            Func<object[]?, object> converterCreator = CreatorCache.Get(namingStrategyType);
+            Func<object[]?, object> converterCreator = CreatorCache.Instance.Get(namingStrategyType);
             return (NamingStrategy)converterCreator(args);
         }
 
+        [RequiresUnreferencedCode(MiscellaneousUtils.TrimWarning)]
+        [RequiresDynamicCode(MiscellaneousUtils.AotWarning)]
         public static NamingStrategy? GetContainerNamingStrategy(JsonContainerAttribute containerAttribute)
         {
             if (containerAttribute.NamingStrategyInstance == null)
@@ -227,7 +258,10 @@ namespace Newtonsoft.Json.Serialization
             return containerAttribute.NamingStrategyInstance;
         }
 
-        private static Func<object[]?, object> GetCreator(Type type)
+        [RequiresDynamicCode(MiscellaneousUtils.AotWarning)]
+        private static Func<object[]?, object> GetCreator(
+            [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors | DynamicallyAccessedMemberTypes.NonPublicConstructors)]
+            Type type)
         {
             Func<object>? defaultConstructor = (ReflectionUtils.HasDefaultConstructor(type, false))
                 ? ReflectionDelegateFactory.CreateDefaultConstructor<object>(type)
@@ -248,7 +282,7 @@ namespace Newtonsoft.Json.Serialization
 
                             return param.GetType();
                         }).ToArray();
-                        ConstructorInfo parameterizedConstructorInfo = type.GetConstructor(paramTypes);
+                        ConstructorInfo? parameterizedConstructorInfo = type.GetConstructor(paramTypes);
 
                         if (parameterizedConstructorInfo != null)
                         {
@@ -276,11 +310,15 @@ namespace Newtonsoft.Json.Serialization
         }
 
 #if !(NET20 || DOTNET)
+        [RequiresUnreferencedCode(MiscellaneousUtils.TrimWarning)]
+        [RequiresDynamicCode(MiscellaneousUtils.AotWarning)]
         private static Type? GetAssociatedMetadataType(Type type)
         {
-            return AssociatedMetadataTypesCache.Get(type);
+            return AssociatedMetadataTypesCache.Instance.Get(type);
         }
 
+        [RequiresUnreferencedCode(MiscellaneousUtils.TrimWarning)]
+        [RequiresDynamicCode(MiscellaneousUtils.AotWarning)]
         private static Type? GetAssociateMetadataTypeFromAttribute(Type type)
         {
             Attribute[] customAttributes = ReflectionUtils.GetAttributes(type, null, true);
@@ -308,7 +346,9 @@ namespace Newtonsoft.Json.Serialization
         }
 #endif
 
-        private static T? GetAttribute<T>(Type type) where T : Attribute
+        [RequiresUnreferencedCode(MiscellaneousUtils.TrimWarning)]
+        [RequiresDynamicCode(MiscellaneousUtils.AotWarning)]
+        private static T? GetAttribute<T>([DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.Interfaces)] Type type) where T : Attribute
         {
             T? attribute;
 
@@ -342,15 +382,17 @@ namespace Newtonsoft.Json.Serialization
             return null;
         }
 
+        [RequiresUnreferencedCode(MiscellaneousUtils.TrimWarning)]
+        [RequiresDynamicCode(MiscellaneousUtils.AotWarning)]
         private static T? GetAttribute<T>(MemberInfo memberInfo) where T : Attribute
         {
             T? attribute;
 
 #if !(NET20 || DOTNET)
-            Type? metadataType = GetAssociatedMetadataType(memberInfo.DeclaringType);
+            Type? metadataType = GetAssociatedMetadataType(memberInfo.DeclaringType!);
             if (metadataType != null)
             {
-                MemberInfo metadataTypeMemberInfo = ReflectionUtils.GetMemberInfoFromType(metadataType, memberInfo);
+                MemberInfo? metadataTypeMemberInfo = ReflectionUtils.GetMemberInfoFromType(metadataType, memberInfo);
 
                 if (metadataTypeMemberInfo != null)
                 {
@@ -373,7 +415,7 @@ namespace Newtonsoft.Json.Serialization
             {
                 foreach (Type typeInterface in memberInfo.DeclaringType.GetInterfaces())
                 {
-                    MemberInfo interfaceTypeMemberInfo = ReflectionUtils.GetMemberInfoFromType(typeInterface, memberInfo);
+                    MemberInfo? interfaceTypeMemberInfo = ReflectionUtils.GetMemberInfoFromType(typeInterface, memberInfo);
 
                     if (interfaceTypeMemberInfo != null)
                     {
@@ -423,6 +465,8 @@ namespace Newtonsoft.Json.Serialization
         }
 #endif
 
+        [RequiresUnreferencedCode(MiscellaneousUtils.TrimWarning)]
+        [RequiresDynamicCode(MiscellaneousUtils.AotWarning)]
         public static T? GetAttribute<T>(object provider) where T : Attribute
         {
             if (provider is Type type)
@@ -459,7 +503,9 @@ namespace Newtonsoft.Json.Serialization
             {
                 if (_dynamicCodeGeneration == null)
                 {
-#if HAVE_CAS
+#if HAVE_DYNAMIC_CODE_COMPILED
+                    _dynamicCodeGeneration = RuntimeFeature.IsDynamicCodeCompiled;
+#elif HAVE_CAS
                     try
                     {
                         new ReflectionPermission(ReflectionPermissionFlag.MemberAccess).Demand();

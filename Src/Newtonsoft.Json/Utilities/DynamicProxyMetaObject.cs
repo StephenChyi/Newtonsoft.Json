@@ -1,4 +1,4 @@
-﻿#region License
+#region License
 // Copyright (c) 2007 James Newton-King
 //
 // Permission is hereby granted, free of charge, to any person
@@ -26,18 +26,21 @@
 #if HAVE_DYNAMIC
 using System;
 using System.Collections.Generic;
+using System.Diagnostics.CodeAnalysis;
 using System.Dynamic;
 using System.Linq;
 using System.Linq.Expressions;
 
 namespace Newtonsoft.Json.Utilities
 {
+    [RequiresUnreferencedCode(MiscellaneousUtils.TrimWarning)]
+    [RequiresDynamicCode(MiscellaneousUtils.AotWarning)]
     internal sealed class DynamicProxyMetaObject<T> : DynamicMetaObject
     {
         private readonly DynamicProxy<T> _proxy;
 
         internal DynamicProxyMetaObject(Expression expression, T value, DynamicProxy<T> proxy)
-            : base(expression, BindingRestrictions.Empty, value)
+            : base(expression, BindingRestrictions.Empty, value!)
         {
             _proxy = proxy;
         }
@@ -109,7 +112,7 @@ namespace Newtonsoft.Json.Utilities
                     new GetBinderAdapter(binder),
                     NoArgs,
                     fallback(null),
-                    e => binder.FallbackInvoke(e, args, null)
+                    e => binder.FallbackInvoke(e!, args, null)
                     ),
                 null
                 );
@@ -197,7 +200,7 @@ namespace Newtonsoft.Json.Utilities
             Type t = binder.GetType();
             while (!t.IsVisible())
             {
-                t = t.BaseType();
+                t = t.BaseType()!;
             }
             return Expression.Constant(binder, t);
         }
@@ -256,7 +259,7 @@ namespace Newtonsoft.Json.Utilities
                     Expression.Condition(
                         Expression.Call(
                             Expression.Constant(_proxy),
-                            typeof(DynamicProxy<T>).GetMethod(methodName),
+                            typeof(DynamicProxy<T>).GetMethod(methodName)!,
                             callArgs
                             ),
                         resultMetaObject.Expression,
@@ -304,7 +307,7 @@ namespace Newtonsoft.Json.Utilities
                     Expression.Condition(
                         Expression.Call(
                             Expression.Constant(_proxy),
-                            typeof(DynamicProxy<T>).GetMethod(methodName),
+                            typeof(DynamicProxy<T>).GetMethod(methodName)!,
                             callArgs
                             ),
                         result,
@@ -342,7 +345,7 @@ namespace Newtonsoft.Json.Utilities
                 Expression.Condition(
                     Expression.Call(
                         Expression.Constant(_proxy),
-                        typeof(DynamicProxy<T>).GetMethod(methodName),
+                        typeof(DynamicProxy<T>).GetMethod(methodName)!,
                         callArgs
                         ),
                     Expression.Empty(),
@@ -366,13 +369,14 @@ namespace Newtonsoft.Json.Utilities
 
         public override IEnumerable<string> GetDynamicMemberNames()
         {
-            return _proxy.GetDynamicMemberNames((T)Value);
+            return _proxy.GetDynamicMemberNames((T)Value!);
         }
 
         // It is okay to throw NotSupported from this binder. This object
         // is only used by DynamicObject.GetMember--it is not expected to
         // (and cannot) implement binding semantics. It is just so the DO
         // can use the Name and IgnoreCase properties.
+        [RequiresDynamicCode(MiscellaneousUtils.AotWarning)]
         private sealed class GetBinderAdapter : GetMemberBinder
         {
             internal GetBinderAdapter(InvokeMemberBinder binder) :
@@ -380,7 +384,7 @@ namespace Newtonsoft.Json.Utilities
             {
             }
 
-            public override DynamicMetaObject FallbackGetMember(DynamicMetaObject target, DynamicMetaObject errorSuggestion)
+            public override DynamicMetaObject FallbackGetMember(DynamicMetaObject target, DynamicMetaObject? errorSuggestion)
             {
                 throw new NotSupportedException();
             }

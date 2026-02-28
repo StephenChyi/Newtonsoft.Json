@@ -26,6 +26,7 @@
 using System;
 using Newtonsoft.Json.Serialization;
 using System.Reflection;
+using System.Diagnostics.CodeAnalysis;
 
 #if !HAVE_LINQ
 using Newtonsoft.Json.Utilities.LinqBridge;
@@ -39,6 +40,7 @@ namespace Newtonsoft.Json.Utilities
 
         internal static ReflectionDelegateFactory Instance => _instance;
 
+        [RequiresDynamicCode(MiscellaneousUtils.AotWarning)]
         public override ObjectConstructor<object> CreateParameterizedConstructor(MethodBase method)
         {
             ValidationUtils.ArgumentNotNull(method, nameof(method));
@@ -50,9 +52,10 @@ namespace Newtonsoft.Json.Utilities
                 return a => c.Invoke(a);
             }
 
-            return a => method.Invoke(null, a);
+            return a => method.Invoke(null, a)!;
         }
 
+        [RequiresDynamicCode(MiscellaneousUtils.AotWarning)]
         public override MethodCall<T, object?> CreateMethodCall<T>(MethodBase method)
         {
             ValidationUtils.ArgumentNotNull(method, nameof(method));
@@ -65,20 +68,28 @@ namespace Newtonsoft.Json.Utilities
             return (o, a) => method.Invoke(o, a);
         }
 
-        public override Func<T> CreateDefaultConstructor<T>(Type type)
+        [RequiresDynamicCode(MiscellaneousUtils.AotWarning)]
+        public override Func<T> CreateDefaultConstructor<T>(
+            [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors | DynamicallyAccessedMemberTypes.NonPublicConstructors)]
+            Type type)
         {
             ValidationUtils.ArgumentNotNull(type, nameof(type));
 
             if (type.IsValueType())
             {
-                return () => (T)Activator.CreateInstance(type);
+                return () => (T)Activator.CreateInstance(type)!;
             }
 
-            ConstructorInfo constructorInfo = ReflectionUtils.GetDefaultConstructor(type, true);
+            ConstructorInfo? constructorInfo = ReflectionUtils.GetDefaultConstructor(type, true);
+            if (constructorInfo == null)
+            {
+                throw new InvalidOperationException("Unable to find default constructor for " + type.FullName);
+            }
 
             return () => (T)constructorInfo.Invoke(null);
         }
 
+        [RequiresDynamicCode(MiscellaneousUtils.AotWarning)]
         public override Func<T, object?> CreateGet<T>(PropertyInfo propertyInfo)
         {
             ValidationUtils.ArgumentNotNull(propertyInfo, nameof(propertyInfo));
@@ -86,6 +97,7 @@ namespace Newtonsoft.Json.Utilities
             return o => propertyInfo.GetValue(o, null);
         }
 
+        [RequiresDynamicCode(MiscellaneousUtils.AotWarning)]
         public override Func<T, object?> CreateGet<T>(FieldInfo fieldInfo)
         {
             ValidationUtils.ArgumentNotNull(fieldInfo, nameof(fieldInfo));
@@ -93,6 +105,7 @@ namespace Newtonsoft.Json.Utilities
             return o => fieldInfo.GetValue(o);
         }
 
+        [RequiresDynamicCode(MiscellaneousUtils.AotWarning)]
         public override Action<T, object?> CreateSet<T>(FieldInfo fieldInfo)
         {
             ValidationUtils.ArgumentNotNull(fieldInfo, nameof(fieldInfo));
@@ -100,6 +113,7 @@ namespace Newtonsoft.Json.Utilities
             return (o, v) => fieldInfo.SetValue(o, v);
         }
 
+        [RequiresDynamicCode(MiscellaneousUtils.AotWarning)]
         public override Action<T, object?> CreateSet<T>(PropertyInfo propertyInfo)
         {
             ValidationUtils.ArgumentNotNull(propertyInfo, nameof(propertyInfo));

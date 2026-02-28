@@ -33,12 +33,14 @@ using System.Text;
 using System.Reflection;
 using Newtonsoft.Json.Utilities;
 using System.Globalization;
+using System.Diagnostics.CodeAnalysis;
 
 namespace Newtonsoft.Json.Serialization
 {
     /// <summary>
     /// Get and set values for a <see cref="MemberInfo"/> using dynamic methods.
     /// </summary>
+    [RequiresDynamicCode(MiscellaneousUtils.AotWarning)]
     public class DynamicValueProvider : IValueProvider
     {
         private readonly MemberInfo _memberInfo;
@@ -72,14 +74,7 @@ namespace Newtonsoft.Json.Serialization
 #if DEBUG
                 // dynamic method doesn't check whether the type is 'legal' to set
                 // add this check for unit tests
-                if (value == null)
-                {
-                    if (!ReflectionUtils.IsNullable(ReflectionUtils.GetMemberUnderlyingType(_memberInfo)))
-                    {
-                        throw new JsonSerializationException("Incompatible value. Cannot set {0} to null.".FormatWith(CultureInfo.InvariantCulture, _memberInfo));
-                    }
-                }
-                else if (!ReflectionUtils.GetMemberUnderlyingType(_memberInfo).IsAssignableFrom(value.GetType()))
+                if (value != null && !ReflectionUtils.GetMemberUnderlyingType(_memberInfo).IsAssignableFrom(value.GetType()))
                 {
                     throw new JsonSerializationException("Incompatible value. Cannot set {0} to type {1}.".FormatWith(CultureInfo.InvariantCulture, _memberInfo, value.GetType()));
                 }

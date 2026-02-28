@@ -25,6 +25,7 @@
 
 using System;
 using System.Collections.Generic;
+using System.Diagnostics.CodeAnalysis;
 using Newtonsoft.Json.Serialization;
 using Newtonsoft.Json.Utilities;
 using System.Reflection;
@@ -34,6 +35,8 @@ namespace Newtonsoft.Json.Converters
     /// <summary>
     /// Converts a <see cref="KeyValuePair{TKey,TValue}"/> to and from JSON.
     /// </summary>
+    [RequiresUnreferencedCode(MiscellaneousUtils.TrimWarning)]
+    [RequiresDynamicCode(MiscellaneousUtils.AotWarning)]
     public class KeyValuePairConverter : JsonConverter
     {
         private const string KeyName = "Key";
@@ -102,7 +105,7 @@ namespace Newtonsoft.Json.Converters
             reader.ReadAndAssert();
 
             Type t = ReflectionUtils.IsNullableType(objectType)
-                ? Nullable.GetUnderlyingType(objectType)
+                ? Nullable.GetUnderlyingType(objectType)!
                 : objectType;
 
             ReflectionObject reflectionObject = ReflectionObjectPerType.Get(t);
@@ -111,7 +114,7 @@ namespace Newtonsoft.Json.Converters
 
             while (reader.TokenType == JsonToken.PropertyName)
             {
-                string propertyName = reader.Value!.ToString();
+                string propertyName = reader.Value!.ToString()!;
                 if (string.Equals(propertyName, KeyName, StringComparison.OrdinalIgnoreCase))
                 {
                     reader.ReadForTypeAndAssert(keyContract, false);
@@ -145,7 +148,7 @@ namespace Newtonsoft.Json.Converters
         public override bool CanConvert(Type objectType)
         {
             Type t = (ReflectionUtils.IsNullableType(objectType))
-                ? Nullable.GetUnderlyingType(objectType)
+                ? Nullable.GetUnderlyingType(objectType)!
                 : objectType;
 
             if (t.IsValueType() && t.IsGenericType())

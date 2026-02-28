@@ -93,7 +93,12 @@ namespace Newtonsoft.Json.Linq
         /// </summary>
         /// <param name="other">A <see cref="JObject"/> object to copy from.</param>
         public JObject(JObject other)
-            : base(other)
+            : base(other, settings: null)
+        {
+        }
+
+        internal JObject(JObject other, JsonCloneSettings? settings)
+            : base(other, settings)
         {
         }
 
@@ -135,7 +140,7 @@ namespace Newtonsoft.Json.Linq
             return _properties.IndexOfReference(item);
         }
 
-        internal override bool InsertItem(int index, JToken? item, bool skipParentCheck)
+        internal override bool InsertItem(int index, JToken? item, bool skipParentCheck, bool copyAnnotations)
         {
             // don't add comments to JObject, no name to reference comment by
             if (item != null && item.Type == JTokenType.Comment)
@@ -143,7 +148,7 @@ namespace Newtonsoft.Json.Linq
                 return false;
             }
 
-            return base.InsertItem(index, item, skipParentCheck);
+            return base.InsertItem(index, item, skipParentCheck, copyAnnotations);
         }
 
         internal override void ValidateToken(JToken o, JToken? existing)
@@ -244,9 +249,9 @@ namespace Newtonsoft.Json.Linq
 #endif
         }
 
-        internal override JToken CloneToken()
+        internal override JToken CloneToken(JsonCloneSettings? settings)
         {
-            return new JObject(this);
+            return new JObject(this, settings);
         }
 
         /// <summary>
@@ -480,6 +485,8 @@ namespace Newtonsoft.Json.Linq
         /// </summary>
         /// <param name="o">The object that will be used to create <see cref="JObject"/>.</param>
         /// <returns>A <see cref="JObject"/> with the values of the specified object.</returns>
+        [RequiresUnreferencedCode(MiscellaneousUtils.TrimWarning)]
+        [RequiresDynamicCode(MiscellaneousUtils.AotWarning)]
         public new static JObject FromObject(object o)
         {
             return FromObject(o, JsonSerializer.CreateDefault());
@@ -491,6 +498,8 @@ namespace Newtonsoft.Json.Linq
         /// <param name="o">The object that will be used to create <see cref="JObject"/>.</param>
         /// <param name="jsonSerializer">The <see cref="JsonSerializer"/> that will be used to read the object.</param>
         /// <returns>A <see cref="JObject"/> with the values of the specified object.</returns>
+        [RequiresUnreferencedCode(MiscellaneousUtils.TrimWarning)]
+        [RequiresDynamicCode(MiscellaneousUtils.AotWarning)]
         public new static JObject FromObject(object o, JsonSerializer jsonSerializer)
         {
             JToken token = FromObjectInternal(o, jsonSerializer);
@@ -508,6 +517,8 @@ namespace Newtonsoft.Json.Linq
         /// </summary>
         /// <param name="writer">A <see cref="JsonWriter"/> into which this method will write.</param>
         /// <param name="converters">A collection of <see cref="JsonConverter"/> which will be used when writing the token.</param>
+        [RequiresUnreferencedCode(MiscellaneousUtils.TrimWarning)]
+        [RequiresDynamicCode(MiscellaneousUtils.AotWarning)]
         public override void WriteTo(JsonWriter writer, params JsonConverter[] converters)
         {
             writer.WriteStartObject();
@@ -737,12 +748,14 @@ namespace Newtonsoft.Json.Linq
         // include custom type descriptor on JObject rather than use a provider because the properties are specific to a type
 
         #region ICustomTypeDescriptor
+        [RequiresUnreferencedCode(MiscellaneousUtils.TrimWarning)]
         PropertyDescriptorCollection ICustomTypeDescriptor.GetProperties()
         {
             return ((ICustomTypeDescriptor)this).GetProperties(null);
         }
 
-        PropertyDescriptorCollection ICustomTypeDescriptor.GetProperties(Attribute[] attributes)
+        [RequiresUnreferencedCode(MiscellaneousUtils.TrimWarning)]
+        PropertyDescriptorCollection ICustomTypeDescriptor.GetProperties(Attribute[]? attributes)
         {
             PropertyDescriptor[] propertiesArray = new PropertyDescriptor[Count];
             int i = 0;
@@ -770,27 +783,32 @@ namespace Newtonsoft.Json.Linq
             return null;
         }
 
+        [RequiresUnreferencedCode(MiscellaneousUtils.TrimWarning)]
         TypeConverter ICustomTypeDescriptor.GetConverter()
         {
             return new TypeConverter();
         }
 
+        [RequiresUnreferencedCode(MiscellaneousUtils.TrimWarning)]
         EventDescriptor? ICustomTypeDescriptor.GetDefaultEvent()
         {
             return null;
         }
 
+        [RequiresUnreferencedCode(MiscellaneousUtils.TrimWarning)]
         PropertyDescriptor? ICustomTypeDescriptor.GetDefaultProperty()
         {
             return null;
         }
 
+        [RequiresUnreferencedCode(MiscellaneousUtils.TrimWarning)]
         object? ICustomTypeDescriptor.GetEditor(Type editorBaseType)
         {
             return null;
         }
 
-        EventDescriptorCollection ICustomTypeDescriptor.GetEvents(Attribute[] attributes)
+        [RequiresUnreferencedCode(MiscellaneousUtils.TrimWarning)]
+        EventDescriptorCollection ICustomTypeDescriptor.GetEvents(Attribute[]? attributes)
         {
             return EventDescriptorCollection.Empty;
         }
@@ -800,7 +818,7 @@ namespace Newtonsoft.Json.Linq
             return EventDescriptorCollection.Empty;
         }
 
-        object? ICustomTypeDescriptor.GetPropertyOwner(PropertyDescriptor pd)
+        object? ICustomTypeDescriptor.GetPropertyOwner(PropertyDescriptor? pd)
         {
             if (pd is JPropertyDescriptor)
             {
@@ -823,7 +841,15 @@ namespace Newtonsoft.Json.Linq
         /// </returns>
         protected override DynamicMetaObject GetMetaObject(Expression parameter)
         {
+#if HAVE_APPCONTEXT
+            if (!DynamicIsSupported)
+            {
+                throw new NotSupportedException(DynamicNotSupportedMessage);
+            }
+#endif
+#pragma warning disable IL2026, IL3050
             return new DynamicProxyMetaObject<JObject>(parameter, this, new JObjectDynamicProxy());
+#pragma warning restore IL2026, IL3050
         }
 
         private class JObjectDynamicProxy : DynamicProxy<JObject>

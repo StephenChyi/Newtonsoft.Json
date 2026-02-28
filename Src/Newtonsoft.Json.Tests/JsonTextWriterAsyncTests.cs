@@ -102,7 +102,7 @@ namespace Newtonsoft.Json.Tests
             }
         }
 
-#if !(NETSTANDARD1_0 || PORTABLE) || NETSTANDARD2_0
+#if !(NETSTANDARD1_0 || PORTABLE) || NETSTANDARD2_0 || NET6_0_OR_GREATER
         [Test]
         public async Task WriteLazy()
         {
@@ -370,7 +370,7 @@ namespace Newtonsoft.Json.Tests
             Assert.IsTrue(ms.CanRead);
         }
 
-#if !(PORTABLE) || NETSTANDARD1_3 || NETSTANDARD2_0
+#if !(PORTABLE) || NETSTANDARD1_3 || NETSTANDARD2_0 || NET6_0_OR_GREATER
         [Test]
         public async Task WriteIConvertableAsync()
         {
@@ -1018,7 +1018,7 @@ namespace Newtonsoft.Json.Tests
                 await jsonWriter.WriteEndArrayAsync();
             }
 
-#if !(NETSTANDARD2_0 || NETSTANDARD1_3)
+#if !(NETSTANDARD2_0 || NETSTANDARD1_3 || NET6_0_OR_GREATER)
             Assert.AreEqual(@"[0.0,0.0,0.1,1.0,1.000001,1E-06,4.94065645841247E-324,Infinity,-Infinity,NaN,1.7976931348623157E+308,-1.7976931348623157E+308,Infinity,-Infinity,NaN]", sb.ToString());
 #else
             Assert.AreEqual(@"[0.0,0.0,0.1,1.0,1.000001,1E-06,5E-324,Infinity,-Infinity,NaN,1.7976931348623157E+308,-1.7976931348623157E+308,Infinity,-Infinity,NaN]", sb.ToString());
@@ -1095,7 +1095,13 @@ namespace Newtonsoft.Json.Tests
             {
                 await jsonWriter.WriteTokenAsync(JsonToken.StartArray);
 
-                await ExceptionAssert.ThrowsAsync<FormatException>(async () => { await jsonWriter.WriteTokenAsync(JsonToken.Integer, "three"); }, "Input string was not in a correct format.");
+#if NET7_0_OR_GREATER
+                // .NET 7.0 prints actual input in the message:
+                string expectedMessage = "The input string 'three' was not in a correct format.";
+#else
+                string expectedMessage = "Input string was not in a correct format.";
+#endif
+                await ExceptionAssert.ThrowsAsync<FormatException>(async () => { await jsonWriter.WriteTokenAsync(JsonToken.Integer, "three"); }, expectedMessage);
 
                 await ExceptionAssert.ThrowsAsync<ArgumentNullException>(async () => { await jsonWriter.WriteTokenAsync(JsonToken.Integer); }, @"Value cannot be null.
 Parameter name: value", "Value cannot be null. (Parameter 'value')");

@@ -136,7 +136,7 @@ namespace Newtonsoft.Json.Tests
             Assert.AreEqual(1, arrayPool.FreeArrays.Count);
         }
 
-#if !(NET20 || NET35 || NET40 || PORTABLE || PORTABLE40 || DNXCORE50) || NETSTANDARD2_0
+#if !(NET20 || NET35 || NET40 || PORTABLE || PORTABLE40 || DNXCORE50) || NETSTANDARD2_0 || NET6_0_OR_GREATER
         [Test]
         public void BufferErroringWithInvalidSize()
         {
@@ -225,7 +225,7 @@ namespace Newtonsoft.Json.Tests
             Assert.IsTrue(ms.CanRead);
         }
 
-#if !(PORTABLE) || NETSTANDARD2_0
+#if !(PORTABLE) || NETSTANDARD2_0 || NET6_0_OR_GREATER
         [Test]
         public void WriteIConvertable()
         {
@@ -880,7 +880,7 @@ namespace Newtonsoft.Json.Tests
                 jsonWriter.WriteEndArray();
             }
 
-#if !(NETSTANDARD2_0 || NETSTANDARD1_3)
+#if !(NETSTANDARD2_0 || NETSTANDARD1_3 || NET6_0_OR_GREATER)
             Assert.AreEqual(@"[0.0,0.0,0.1,1.0,1.000001,1E-06,4.94065645841247E-324,Infinity,-Infinity,NaN,1.7976931348623157E+308,-1.7976931348623157E+308,Infinity,-Infinity,NaN]", sb.ToString());
 #else
             Assert.AreEqual(@"[0.0,0.0,0.1,1.0,1.000001,1E-06,5E-324,Infinity,-Infinity,NaN,1.7976931348623157E+308,-1.7976931348623157E+308,Infinity,-Infinity,NaN]", sb.ToString());
@@ -966,7 +966,13 @@ namespace Newtonsoft.Json.Tests
             {
                 jsonWriter.WriteToken(JsonToken.StartArray);
 
-                ExceptionAssert.Throws<FormatException>(() => { jsonWriter.WriteToken(JsonToken.Integer, "three"); }, "Input string was not in a correct format.");
+#if NET7_0_OR_GREATER
+                // .NET 7.0 prints actual input in the message:
+                string expectedMessage = "The input string 'three' was not in a correct format.";
+#else
+                string expectedMessage = "Input string was not in a correct format.";
+#endif
+                ExceptionAssert.Throws<FormatException>(() => { jsonWriter.WriteToken(JsonToken.Integer, "three"); }, expectedMessage);
 
                 ExceptionAssert.Throws<ArgumentNullException>(() => { jsonWriter.WriteToken(JsonToken.Integer); }, @"Value cannot be null.
 Parameter name: value", "Value cannot be null. (Parameter 'value')");
@@ -1699,7 +1705,8 @@ null//comment
 
             w.WriteToken(r, true);
 
-            StringAssert.AreEqual(@"/*comment*//*hi*/*/{/*comment*/
+            StringAssert.AreEqual(@"//comment*//*hi*/
+{/*comment*/
   ""Name"": /*comment*/ true/*comment after true*//*comment after comma*/,
   ""ExpiryDate"": /*comment*/ new Constructor(
     /*comment*/,
@@ -1713,6 +1720,20 @@ null//comment
     /*comment*/
   ]/*comment*/
 }/*comment *//*comment 1 */", sw.ToString());
+        }
+
+        [Test]
+        public void NewlinesInSingleLineComments()
+        {
+            // it’s not possible for this to be created by parsing JSON,
+            // but if someone gets creative with the API…
+            var sw = new StringWriter();
+            using (var w = new JsonTextWriter(sw))
+            {
+                w.WriteComment("*/\nsomething else");
+            }
+            
+            StringAssert.AreEqual("//*/\n//something else\n", sw.ToString());
         }
 
         [Test]

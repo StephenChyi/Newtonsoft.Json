@@ -84,7 +84,7 @@ namespace Newtonsoft.Json.Linq
         /// <summary>
         /// Occurs when the items list of the collection has changed, or the collection is reset.
         /// </summary>
-        public event NotifyCollectionChangedEventHandler CollectionChanged
+        public event NotifyCollectionChangedEventHandler? CollectionChanged
         {
             add { _collectionChanged += value; }
             remove { _collectionChanged -= value; }
@@ -106,19 +106,24 @@ namespace Newtonsoft.Json.Linq
         {
         }
 
-        internal JContainer(JContainer other)
+        internal JContainer(JContainer other, JsonCloneSettings? settings)
             : this()
         {
             ValidationUtils.ArgumentNotNull(other, nameof(other));
 
+            bool copyAnnotations = settings?.CopyAnnotations ?? true;
+
+            if (copyAnnotations)
+            {
+                CopyAnnotations(this, other);
+            }
+
             int i = 0;
             foreach (JToken child in other)
             {
-                TryAddInternal(i, child, false);
+                TryAddInternal(i, child, false, copyAnnotations);
                 i++;
             }
-
-            CopyAnnotations(this, other);
         }
 
         internal void CheckReentrancy()
@@ -323,7 +328,7 @@ namespace Newtonsoft.Json.Linq
             return (content is IEnumerable && !(content is string) && !(content is JToken) && !(content is byte[]));
         }
 
-        internal JToken EnsureParentToken(JToken? item, bool skipParentCheck)
+        internal JToken EnsureParentToken(JToken? item, bool skipParentCheck, bool copyAnnotations)
         {
             if (item == null)
             {
@@ -341,7 +346,12 @@ namespace Newtonsoft.Json.Linq
             // the item is being added to the root parent of itself
             if (item.Parent != null || item == this || (item.HasValues && Root == item))
             {
-                item = item.CloneToken();
+                // Avoid allocating settings when copy annotations is false.
+                JsonCloneSettings? settings = copyAnnotations
+                    ? null
+                    : JsonCloneSettings.SkipCopyAnnotations;
+
+                item = item.CloneToken(settings);
             }
 
             return item;
@@ -349,7 +359,7 @@ namespace Newtonsoft.Json.Linq
 
         internal abstract int IndexOfItem(JToken? item);
 
-        internal virtual bool InsertItem(int index, JToken? item, bool skipParentCheck)
+        internal virtual bool InsertItem(int index, JToken? item, bool skipParentCheck, bool copyAnnotations)
         {
             IList<JToken> children = ChildrenTokens;
 
@@ -360,7 +370,7 @@ namespace Newtonsoft.Json.Linq
 
             CheckReentrancy();
 
-            item = EnsureParentToken(item, skipParentCheck);
+            item = EnsureParentToken(item, skipParentCheck, copyAnnotations);
 
             JToken? previous = (index == 0) ? null : children[index - 1];
             // haven't inserted new token yet so next token is still at the inserting index
@@ -490,7 +500,7 @@ namespace Newtonsoft.Json.Linq
 
             CheckReentrancy();
 
-            item = EnsureParentToken(item, false);
+            item = EnsureParentToken(item, false, copyAnnotations: true);
 
             ValidateToken(item, existing);
 
@@ -635,17 +645,17 @@ namespace Newtonsoft.Json.Linq
         /// <param name="content">The content to be added.</param>
         public virtual void Add(object? content)
         {
-            TryAddInternal(ChildrenTokens.Count, content, false);
+            TryAddInternal(ChildrenTokens.Count, content, false, copyAnnotations: true);
         }
 
         internal bool TryAdd(object? content)
         {
-            return TryAddInternal(ChildrenTokens.Count, content, false);
+            return TryAddInternal(ChildrenTokens.Count, content, false, copyAnnotations: true);
         }
 
         internal void AddAndSkipParentCheck(JToken token)
         {
-            TryAddInternal(ChildrenTokens.Count, token, true);
+            TryAddInternal(ChildrenTokens.Count, token, true, copyAnnotations: true);
         }
 
         /// <summary>
@@ -654,10 +664,10 @@ namespace Newtonsoft.Json.Linq
         /// <param name="content">The content to be added.</param>
         public void AddFirst(object? content)
         {
-            TryAddInternal(0, content, false);
+            TryAddInternal(0, content, false, copyAnnotations: true);
         }
 
-        internal bool TryAddInternal(int index, object? content, bool skipParentCheck)
+        internal bool TryAddInternal(int index, object? content, bool skipParentCheck, bool copyAnnotations)
         {
             if (IsMultiContent(content))
             {
@@ -666,7 +676,7 @@ namespace Newtonsoft.Json.Linq
                 int multiIndex = index;
                 foreach (object c in enumerable)
                 {
-                    TryAddInternal(multiIndex, c, skipParentCheck);
+                    TryAddInternal(multiIndex, c, skipParentCheck, copyAnnotations);
                     multiIndex++;
                 }
 
@@ -676,7 +686,7 @@ namespace Newtonsoft.Json.Linq
             {
                 JToken item = CreateFromContent(content);
 
-                return InsertItem(index, item, skipParentCheck);
+                return InsertItem(index, item, skipParentCheck, copyAnnotations);
             }
         }
 
@@ -839,7 +849,7 @@ namespace Newtonsoft.Json.Linq
                         parent = parent.Parent;
                         break;
                     case JsonToken.StartConstructor:
-                        JConstructor constructor = new JConstructor(r.Value!.ToString());
+                        JConstructor constructor = new JConstructor(r.Value!.ToString()!);
                         constructor.SetLineInfo(lineInfo, settings);
                         parent.Add(constructor);
                         parent = constructor;
@@ -902,7 +912,7 @@ namespace Newtonsoft.Json.Linq
             DuplicatePropertyNameHandling duplicatePropertyNameHandling = settings?.DuplicatePropertyNameHandling ?? DuplicatePropertyNameHandling.Replace;
 
             JObject parentObject = (JObject)parent;
-            string propertyName = r.Value!.ToString();
+            string propertyName = r.Value!.ToString()!;
             JProperty? existingPropertyWithName = parentObject.Property(propertyName, StringComparison.Ordinal);
             if (existingPropertyWithName != null)
             {
@@ -942,15 +952,24 @@ namespace Newtonsoft.Json.Linq
         }
 
 #if HAVE_COMPONENT_MODEL
-        string ITypedList.GetListName(PropertyDescriptor[] listAccessors)
+        string ITypedList.GetListName(PropertyDescriptor[]? listAccessors)
         {
             return string.Empty;
         }
 
-        PropertyDescriptorCollection? ITypedList.GetItemProperties(PropertyDescriptor[] listAccessors)
+        PropertyDescriptorCollection ITypedList.GetItemProperties(PropertyDescriptor[]? listAccessors)
         {
+#if HAVE_APPCONTEXT
+            if (!ComponentModelIsSupported)
+            {
+                throw new NotSupportedException(ComponentModelNotSupportedMessage);
+            }
+#endif
             ICustomTypeDescriptor? d = First as ICustomTypeDescriptor;
-            return d?.GetProperties();
+
+#pragma warning disable IL2026
+            return d?.GetProperties() ?? new PropertyDescriptorCollection(CollectionUtils.ArrayEmpty<PropertyDescriptor>());
+#pragma warning restore IL2026
         }
 #endif
 
@@ -962,7 +981,7 @@ namespace Newtonsoft.Json.Linq
 
         void IList<JToken>.Insert(int index, JToken item)
         {
-            InsertItem(index, item, false);
+            InsertItem(index, item, false, copyAnnotations: true);
         }
 
         void IList<JToken>.RemoveAt(int index)
@@ -1006,7 +1025,7 @@ namespace Newtonsoft.Json.Linq
         }
         #endregion
 
-        private JToken? EnsureValue(object value)
+        private JToken? EnsureValue(object? value)
         {
             if (value == null)
             {
@@ -1022,7 +1041,7 @@ namespace Newtonsoft.Json.Linq
         }
 
         #region IList Members
-        int IList.Add(object value)
+        int IList.Add(object? value)
         {
             Add(EnsureValue(value));
             return Count - 1;
@@ -1033,26 +1052,26 @@ namespace Newtonsoft.Json.Linq
             ClearItems();
         }
 
-        bool IList.Contains(object value)
+        bool IList.Contains(object? value)
         {
             return ContainsItem(EnsureValue(value));
         }
 
-        int IList.IndexOf(object value)
+        int IList.IndexOf(object? value)
         {
             return IndexOfItem(EnsureValue(value));
         }
 
-        void IList.Insert(int index, object value)
+        void IList.Insert(int index, object? value)
         {
-            InsertItem(index, EnsureValue(value), false);
+            InsertItem(index, EnsureValue(value), false, copyAnnotations: false);
         }
 
         bool IList.IsFixedSize => false;
 
         bool IList.IsReadOnly => false;
 
-        void IList.Remove(object value)
+        void IList.Remove(object? value)
         {
             RemoveItem(EnsureValue(value));
         }
@@ -1062,7 +1081,7 @@ namespace Newtonsoft.Json.Linq
             RemoveItemAt(index);
         }
 
-        object IList.this[int index]
+        object? IList.this[int index]
         {
             get => GetItem(index);
             set => SetItem(index, EnsureValue(value));

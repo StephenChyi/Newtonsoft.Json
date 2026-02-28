@@ -26,6 +26,7 @@
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
+using System.Diagnostics.CodeAnalysis;
 using System.Reflection;
 using System.Text;
 using System.Collections;
@@ -94,6 +95,7 @@ namespace Newtonsoft.Json.Utilities
         }
 #endif
 
+        [RequiresUnreferencedCode(MiscellaneousUtils.TrimWarning)]
         public static bool IsDictionaryType(Type type)
         {
             ValidationUtils.ArgumentNotNull(type, nameof(type));
@@ -116,14 +118,23 @@ namespace Newtonsoft.Json.Utilities
             return false;
         }
 
-        public static ConstructorInfo? ResolveEnumerableCollectionConstructor(Type collectionType, Type collectionItemType)
+        [RequiresDynamicCode(MiscellaneousUtils.AotWarning)]
+        public static ConstructorInfo? ResolveEnumerableCollectionConstructor(
+            [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)]
+            Type collectionType,
+            Type collectionItemType)
         {
             Type genericConstructorArgument = typeof(IList<>).MakeGenericType(collectionItemType);
 
             return ResolveEnumerableCollectionConstructor(collectionType, collectionItemType, genericConstructorArgument);
         }
 
-        public static ConstructorInfo? ResolveEnumerableCollectionConstructor(Type collectionType, Type collectionItemType, Type constructorArgumentType)
+        [RequiresDynamicCode(MiscellaneousUtils.AotWarning)]
+        public static ConstructorInfo? ResolveEnumerableCollectionConstructor(
+            [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)]
+            Type collectionType,
+            Type collectionItemType,
+            Type constructorArgumentType)
         {
             Type genericEnumerable = typeof(IEnumerable<>).MakeGenericType(collectionItemType);
             ConstructorInfo? match = null;
@@ -289,7 +300,7 @@ namespace Newtonsoft.Json.Utilities
                     break;
                 }
 
-                object v = currentArray[0];
+                object? v = currentArray[0];
                 if (v is IList list)
                 {
                     currentArray = list;
@@ -341,16 +352,17 @@ namespace Newtonsoft.Json.Utilities
                 int index = indices[i];
                 if (i == indices.Length - 1)
                 {
-                    return currentList[index];
+                    return currentList[index]!;
                 }
                 else
                 {
-                    currentList = (IList)currentList[index];
+                    currentList = (IList)currentList[index]!;
                 }
             }
             return currentList;
         }
 
+        [RequiresDynamicCode(MiscellaneousUtils.AotWarning)]
         public static Array ToMultidimensionalArray(IList values, Type type, int rank)
         {
             IList<int> dimensions = GetDimensions(values, rank);
@@ -368,15 +380,21 @@ namespace Newtonsoft.Json.Utilities
 
         public static T[] ArrayEmpty<T>()
         {
+#if !HAS_ARRAY_EMPTY
             // Enumerable.Empty<T> no longer returns an empty array in .NET Core 3.0
             return EmptyArrayContainer<T>.Empty;
+#else
+            return Array.Empty<T>();
+#endif
         }
 
+#if !HAS_ARRAY_EMPTY
         private static class EmptyArrayContainer<T>
         {
 #pragma warning disable CA1825 // Avoid zero-length array allocations.
             public static readonly T[] Empty = new T[0];
 #pragma warning restore CA1825 // Avoid zero-length array allocations.
         }
+#endif
     }
 }

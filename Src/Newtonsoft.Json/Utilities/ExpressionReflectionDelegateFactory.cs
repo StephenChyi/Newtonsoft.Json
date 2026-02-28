@@ -26,6 +26,7 @@
 #if !(NET20 || NET35)
 
 using System.Collections.Generic;
+using System.Diagnostics.CodeAnalysis;
 using System.Linq;
 using System.Text;
 using System;
@@ -41,6 +42,7 @@ namespace Newtonsoft.Json.Utilities
 
         internal static ReflectionDelegateFactory Instance => _instance;
 
+        [RequiresDynamicCode(MiscellaneousUtils.AotWarning)]
         public override ObjectConstructor<object> CreateParameterizedConstructor(MethodBase method)
         {
             ValidationUtils.ArgumentNotNull(method, nameof(method));
@@ -57,6 +59,7 @@ namespace Newtonsoft.Json.Utilities
             return compiled;
         }
 
+        [RequiresDynamicCode(MiscellaneousUtils.AotWarning)]
         public override MethodCall<T, object?> CreateMethodCall<T>(MethodBase method)
         {
             ValidationUtils.ArgumentNotNull(method, nameof(method));
@@ -111,7 +114,7 @@ namespace Newtonsoft.Json.Utilities
                     bool isByRef = false;
                     if (parameterType.IsByRef)
                     {
-                        parameterType = parameterType.GetElementType();
+                        parameterType = parameterType.GetElementType()!;
                         isByRef = true;
                     }
 
@@ -144,7 +147,7 @@ namespace Newtonsoft.Json.Utilities
             }
             else
             {
-                Expression readParameter = EnsureCastExpression(targetParameterExpression!, method.DeclaringType);
+                Expression readParameter = EnsureCastExpression(targetParameterExpression!, method.DeclaringType!);
 
                 callExpression = Expression.Call(readParameter, (MethodInfo)method, argsExpression);
             }
@@ -187,14 +190,17 @@ namespace Newtonsoft.Json.Utilities
             return callExpression;
         }
 
-        public override Func<T> CreateDefaultConstructor<T>(Type type)
+        [RequiresDynamicCode(MiscellaneousUtils.AotWarning)]
+        public override Func<T> CreateDefaultConstructor<T>(
+            [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors | DynamicallyAccessedMemberTypes.NonPublicConstructors)]
+            Type type)
         {
             ValidationUtils.ArgumentNotNull(type, "type");
 
             // avoid error from expressions compiler because of abstract class
             if (type.IsAbstract())
             {
-                return () => (T)Activator.CreateInstance(type);
+                return () => (T)Activator.CreateInstance(type)!;
             }
 
             try
@@ -214,10 +220,11 @@ namespace Newtonsoft.Json.Utilities
             {
                 // an error can be thrown if constructor is not valid on Win8
                 // will have INVOCATION_FLAGS_NON_W8P_FX_API invocation flag
-                return () => (T)Activator.CreateInstance(type);
+                return () => (T)Activator.CreateInstance(type)!;
             }
         }
 
+        [RequiresDynamicCode(MiscellaneousUtils.AotWarning)]
         public override Func<T, object?> CreateGet<T>(PropertyInfo propertyInfo)
         {
             ValidationUtils.ArgumentNotNull(propertyInfo, nameof(propertyInfo));
@@ -240,7 +247,7 @@ namespace Newtonsoft.Json.Utilities
             }
             else
             {
-                Expression readParameter = EnsureCastExpression(parameterExpression, propertyInfo.DeclaringType);
+                Expression readParameter = EnsureCastExpression(parameterExpression, propertyInfo.DeclaringType!);
 
                 resultExpression = Expression.MakeMemberAccess(readParameter, propertyInfo);
             }
@@ -253,6 +260,7 @@ namespace Newtonsoft.Json.Utilities
             return compiled;
         }
 
+        [RequiresDynamicCode(MiscellaneousUtils.AotWarning)]
         public override Func<T, object?> CreateGet<T>(FieldInfo fieldInfo)
         {
             ValidationUtils.ArgumentNotNull(fieldInfo, nameof(fieldInfo));
@@ -266,7 +274,7 @@ namespace Newtonsoft.Json.Utilities
             }
             else
             {
-                Expression sourceExpression = EnsureCastExpression(sourceParameter, fieldInfo.DeclaringType);
+                Expression sourceExpression = EnsureCastExpression(sourceParameter, fieldInfo.DeclaringType!);
 
                 fieldExpression = Expression.Field(sourceExpression, fieldInfo);
             }
@@ -277,13 +285,14 @@ namespace Newtonsoft.Json.Utilities
             return compiled;
         }
 
+        [RequiresDynamicCode(MiscellaneousUtils.AotWarning)]
         public override Action<T, object?> CreateSet<T>(FieldInfo fieldInfo)
         {
             ValidationUtils.ArgumentNotNull(fieldInfo, nameof(fieldInfo));
 
             // use reflection for structs
             // expression doesn't correctly set value
-            if (fieldInfo.DeclaringType.IsValueType() || fieldInfo.IsInitOnly)
+            if (fieldInfo.DeclaringType!.IsValueType() || fieldInfo.IsInitOnly)
             {
                 return LateBoundReflectionDelegateFactory.Instance.CreateSet<T>(fieldInfo);
             }
@@ -298,7 +307,7 @@ namespace Newtonsoft.Json.Utilities
             }
             else
             {
-                Expression sourceExpression = EnsureCastExpression(sourceParameterExpression, fieldInfo.DeclaringType);
+                Expression sourceExpression = EnsureCastExpression(sourceParameterExpression, fieldInfo.DeclaringType!);
 
                 fieldExpression = Expression.Field(sourceExpression, fieldInfo);
             }
@@ -313,13 +322,14 @@ namespace Newtonsoft.Json.Utilities
             return compiled;
         }
 
+        [RequiresDynamicCode(MiscellaneousUtils.AotWarning)]
         public override Action<T, object?> CreateSet<T>(PropertyInfo propertyInfo)
         {
             ValidationUtils.ArgumentNotNull(propertyInfo, nameof(propertyInfo));
 
             // use reflection for structs
             // expression doesn't correctly set value
-            if (propertyInfo.DeclaringType.IsValueType())
+            if (propertyInfo.DeclaringType!.IsValueType())
             {
                 return LateBoundReflectionDelegateFactory.Instance.CreateSet<T>(propertyInfo);
             }
@@ -345,7 +355,7 @@ namespace Newtonsoft.Json.Utilities
             }
             else
             {
-                Expression readInstanceParameter = EnsureCastExpression(instanceParameter, propertyInfo.DeclaringType);
+                Expression readInstanceParameter = EnsureCastExpression(instanceParameter, propertyInfo.DeclaringType!);
 
                 setExpression = Expression.Call(readInstanceParameter, setMethod, readValueParameter);
             }
@@ -372,7 +382,7 @@ namespace Newtonsoft.Json.Utilities
 
                 if (allowWidening && targetType.IsPrimitive())
                 {
-                    MethodInfo toTargetTypeMethod = typeof(Convert)
+                    MethodInfo? toTargetTypeMethod = typeof(Convert)
                         .GetMethod("To" + targetType.Name, new[] { typeof(object) });
 
                     if (toTargetTypeMethod != null)

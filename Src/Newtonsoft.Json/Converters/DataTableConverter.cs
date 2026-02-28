@@ -26,6 +26,7 @@
 #if HAVE_ADO_NET
 using System.Collections;
 using System.Collections.Generic;
+using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
 using Newtonsoft.Json.Utilities;
 using System;
@@ -37,6 +38,8 @@ namespace Newtonsoft.Json.Converters
     /// <summary>
     /// Converts a <see cref="DataTable"/> to and from JSON.
     /// </summary>
+    [RequiresUnreferencedCode(MiscellaneousUtils.TrimWarning)]
+    [RequiresDynamicCode(MiscellaneousUtils.AotWarning)]
     public class DataTableConverter : JsonConverter
     {
         /// <summary>
@@ -99,7 +102,7 @@ namespace Newtonsoft.Json.Converters
                 // handle typed datasets
                 dt = (objectType == typeof(DataTable))
                     ? new DataTable()
-                    : (DataTable)Activator.CreateInstance(objectType);
+                    : (DataTable)Activator.CreateInstance(objectType)!;
             }
 
             // DataTable is inside a DataSet
@@ -144,7 +147,7 @@ namespace Newtonsoft.Json.Converters
 
                 reader.ReadAndAssert();
 
-                DataColumn column = dt.Columns[columnName];
+                DataColumn? column = dt.Columns[columnName];
                 if (column == null)
                 {
                     Type columnType = GetColumnDataType(reader);
@@ -185,7 +188,7 @@ namespace Newtonsoft.Json.Converters
                         reader.ReadAndAssert();
                     }
 
-                    Array destinationArray = Array.CreateInstance(column.DataType.GetElementType(), o.Count);
+                    Array destinationArray = Array.CreateInstance(column.DataType.GetElementType()!, o.Count);
                     ((IList)o).CopyTo(destinationArray, 0);
 
                     dr[columnName] = destinationArray;

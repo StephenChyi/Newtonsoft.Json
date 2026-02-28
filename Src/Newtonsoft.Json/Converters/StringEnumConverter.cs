@@ -27,6 +27,7 @@
 
 using System;
 using System.Collections.Generic;
+using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
 using System.Reflection;
 using System.Runtime.Serialization;
@@ -44,6 +45,8 @@ namespace Newtonsoft.Json.Converters
     /// <summary>
     /// Converts an <see cref="Enum"/> to and from its name string value.
     /// </summary>
+    [RequiresUnreferencedCode(MiscellaneousUtils.TrimWarning)]
+    [RequiresDynamicCode(MiscellaneousUtils.AotWarning)]
     public class StringEnumConverter : JsonConverter
     {
         /// <summary>
@@ -222,7 +225,7 @@ namespace Newtonsoft.Json.Converters
             }
 
             bool isNullable = ReflectionUtils.IsNullableType(objectType);
-            Type t = isNullable ? Nullable.GetUnderlyingType(objectType) : objectType;
+            Type t = isNullable ? Nullable.GetUnderlyingType(objectType)! : objectType;
 
             try
             {
@@ -267,7 +270,7 @@ namespace Newtonsoft.Json.Converters
         public override bool CanConvert(Type objectType)
         {
             Type t = (ReflectionUtils.IsNullableType(objectType))
-                ? Nullable.GetUnderlyingType(objectType)
+                ? Nullable.GetUnderlyingType(objectType)!
                 : objectType;
 
             return t.IsEnum();

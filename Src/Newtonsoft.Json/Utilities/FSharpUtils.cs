@@ -32,6 +32,7 @@ using System.Reflection;
 using System.Text;
 using Newtonsoft.Json.Serialization;
 using System.Diagnostics;
+using System.Diagnostics.CodeAnalysis;
 
 namespace Newtonsoft.Json.Utilities
 {
@@ -56,11 +57,13 @@ namespace Newtonsoft.Json.Utilities
 
     internal class FSharpUtils
     {
+        [RequiresUnreferencedCode(MiscellaneousUtils.TrimWarning)]
+        [RequiresDynamicCode(MiscellaneousUtils.AotWarning)]
         private FSharpUtils(Assembly fsharpCoreAssembly)
         {
             FSharpCoreAssembly = fsharpCoreAssembly;
 
-            Type fsharpType = fsharpCoreAssembly.GetType("Microsoft.FSharp.Reflection.FSharpType");
+            Type fsharpType = fsharpCoreAssembly.GetType("Microsoft.FSharp.Reflection.FSharpType")!;
 
             MethodInfo isUnionMethodInfo = GetMethodWithNonPublicFallback(fsharpType, "IsUnion", BindingFlags.Public | BindingFlags.Static);
             IsUnion = JsonTypeReflector.ReflectionDelegateFactory.CreateMethodCall<object?>(isUnionMethodInfo)!;
@@ -68,23 +71,23 @@ namespace Newtonsoft.Json.Utilities
             MethodInfo getUnionCasesMethodInfo = GetMethodWithNonPublicFallback(fsharpType, "GetUnionCases", BindingFlags.Public | BindingFlags.Static);
             GetUnionCases = JsonTypeReflector.ReflectionDelegateFactory.CreateMethodCall<object?>(getUnionCasesMethodInfo)!;
 
-            Type fsharpValue = fsharpCoreAssembly.GetType("Microsoft.FSharp.Reflection.FSharpValue");
+            Type fsharpValue = fsharpCoreAssembly.GetType("Microsoft.FSharp.Reflection.FSharpValue")!;
 
             PreComputeUnionTagReader = CreateFSharpFuncCall(fsharpValue, "PreComputeUnionTagReader");
             PreComputeUnionReader = CreateFSharpFuncCall(fsharpValue, "PreComputeUnionReader");
             PreComputeUnionConstructor = CreateFSharpFuncCall(fsharpValue, "PreComputeUnionConstructor");
 
-            Type unionCaseInfo = fsharpCoreAssembly.GetType("Microsoft.FSharp.Reflection.UnionCaseInfo");
+            Type unionCaseInfo = fsharpCoreAssembly.GetType("Microsoft.FSharp.Reflection.UnionCaseInfo")!;
 
             GetUnionCaseInfoName = JsonTypeReflector.ReflectionDelegateFactory.CreateGet<object>(unionCaseInfo.GetProperty("Name")!)!;
             GetUnionCaseInfoTag = JsonTypeReflector.ReflectionDelegateFactory.CreateGet<object>(unionCaseInfo.GetProperty("Tag")!)!;
             GetUnionCaseInfoDeclaringType = JsonTypeReflector.ReflectionDelegateFactory.CreateGet<object>(unionCaseInfo.GetProperty("DeclaringType")!)!;
-            GetUnionCaseInfoFields = JsonTypeReflector.ReflectionDelegateFactory.CreateMethodCall<object>(unionCaseInfo.GetMethod("GetFields"));
+            GetUnionCaseInfoFields = JsonTypeReflector.ReflectionDelegateFactory.CreateMethodCall<object>(unionCaseInfo.GetMethod("GetFields")!);
 
-            Type listModule = fsharpCoreAssembly.GetType("Microsoft.FSharp.Collections.ListModule");
-            _ofSeq = listModule.GetMethod("OfSeq");
+            Type listModule = fsharpCoreAssembly.GetType("Microsoft.FSharp.Collections.ListModule")!;
+            _ofSeq = listModule.GetMethod("OfSeq")!;
 
-            _mapType = fsharpCoreAssembly.GetType("Microsoft.FSharp.Collections.FSharpMap`2");
+            _mapType = fsharpCoreAssembly.GetType("Microsoft.FSharp.Collections.FSharpMap`2")!;
         }
 
         private static readonly object Lock = new object();
@@ -100,6 +103,8 @@ namespace Newtonsoft.Json.Utilities
         }
 
         private MethodInfo _ofSeq;
+
+        [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)]
         private Type _mapType;
 
         public Assembly FSharpCoreAssembly { get; private set; }
@@ -117,6 +122,8 @@ namespace Newtonsoft.Json.Utilities
         public const string FSharpListTypeName = "FSharpList`1";
         public const string FSharpMapTypeName = "FSharpMap`2";
 
+        [RequiresUnreferencedCode(MiscellaneousUtils.TrimWarning)]
+        [RequiresDynamicCode(MiscellaneousUtils.AotWarning)]
         public static void EnsureInitialized(Assembly fsharpCoreAssembly)
         {
             if (_instance == null)
@@ -131,9 +138,13 @@ namespace Newtonsoft.Json.Utilities
             }
         }
 
-        private static MethodInfo GetMethodWithNonPublicFallback(Type type, string methodName, BindingFlags bindingFlags)
+        private static MethodInfo GetMethodWithNonPublicFallback(
+            [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicMethods | DynamicallyAccessedMemberTypes.NonPublicMethods)]
+            Type type,
+            string methodName,
+            BindingFlags bindingFlags)
         {
-            MethodInfo methodInfo = type.GetMethod(methodName, bindingFlags);
+            MethodInfo methodInfo = type.GetMethod(methodName, bindingFlags)!;
 
             // if no matching method then attempt to find with nonpublic flag
             // this is required because in WinApps some methods are private but always using NonPublic breaks medium trust
@@ -141,16 +152,18 @@ namespace Newtonsoft.Json.Utilities
             // https://github.com/JamesNK/Newtonsoft.Json/issues/821
             if (methodInfo == null && (bindingFlags & BindingFlags.NonPublic) != BindingFlags.NonPublic)
             {
-                methodInfo = type.GetMethod(methodName, bindingFlags | BindingFlags.NonPublic);
+                methodInfo = type.GetMethod(methodName, bindingFlags | BindingFlags.NonPublic)!;
             }
 
             return methodInfo!;
         }
 
+        [RequiresUnreferencedCode(MiscellaneousUtils.TrimWarning)]
+        [RequiresDynamicCode(MiscellaneousUtils.AotWarning)]
         private static MethodCall<object?, object> CreateFSharpFuncCall(Type type, string methodName)
         {
             MethodInfo innerMethodInfo = GetMethodWithNonPublicFallback(type, methodName, BindingFlags.Public | BindingFlags.Static);
-            MethodInfo invokeFunc = innerMethodInfo.ReturnType.GetMethod("Invoke", BindingFlags.Public | BindingFlags.Instance);
+            MethodInfo invokeFunc = innerMethodInfo.ReturnType.GetMethod("Invoke", BindingFlags.Public | BindingFlags.Instance)!;
 
             MethodCall<object?, object?> call = JsonTypeReflector.ReflectionDelegateFactory.CreateMethodCall<object?>(innerMethodInfo);
             MethodCall<object?, object> invoke = JsonTypeReflector.ReflectionDelegateFactory.CreateMethodCall<object?>(invokeFunc)!;
@@ -166,6 +179,8 @@ namespace Newtonsoft.Json.Utilities
             return createFunction;
         }
 
+        [RequiresUnreferencedCode(MiscellaneousUtils.TrimWarning)]
+        [RequiresDynamicCode(MiscellaneousUtils.AotWarning)]
         public ObjectConstructor<object> CreateSeq(Type t)
         {
             MethodInfo seqType = _ofSeq.MakeGenericMethod(t);
@@ -173,19 +188,23 @@ namespace Newtonsoft.Json.Utilities
             return JsonTypeReflector.ReflectionDelegateFactory.CreateParameterizedConstructor(seqType);
         }
 
+        [RequiresUnreferencedCode(MiscellaneousUtils.TrimWarning)]
+        [RequiresDynamicCode(MiscellaneousUtils.AotWarning)]
         public ObjectConstructor<object> CreateMap(Type keyType, Type valueType)
         {
-            MethodInfo creatorDefinition = typeof(FSharpUtils).GetMethod("BuildMapCreator");
+            MethodInfo creatorDefinition = typeof(FSharpUtils).GetMethod("BuildMapCreator")!;
 
             MethodInfo creatorGeneric = creatorDefinition.MakeGenericMethod(keyType, valueType);
 
-            return (ObjectConstructor<object>)creatorGeneric.Invoke(this, null);
+            return (ObjectConstructor<object>)creatorGeneric.Invoke(this, null)!;
         }
 
+        [RequiresUnreferencedCode(MiscellaneousUtils.TrimWarning)]
+        [RequiresDynamicCode(MiscellaneousUtils.AotWarning)]
         public ObjectConstructor<object> BuildMapCreator<TKey, TValue>()
         {
             Type genericMapType = _mapType.MakeGenericType(typeof(TKey), typeof(TValue));
-            ConstructorInfo ctor = genericMapType.GetConstructor(new[] { typeof(IEnumerable<Tuple<TKey, TValue>>) });
+            ConstructorInfo ctor = genericMapType.GetConstructor(new[] { typeof(IEnumerable<Tuple<TKey, TValue>>) })!;
             ObjectConstructor<object> ctorDelegate = JsonTypeReflector.ReflectionDelegateFactory.CreateParameterizedConstructor(ctor);
 
             ObjectConstructor<object> creator = args =>

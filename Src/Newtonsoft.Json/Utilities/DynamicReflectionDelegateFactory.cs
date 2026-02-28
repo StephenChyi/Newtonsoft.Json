@@ -26,6 +26,7 @@
 #if HAVE_REFLECTION_EMIT
 using System;
 using System.Collections.Generic;
+using System.Diagnostics.CodeAnalysis;
 #if !HAVE_LINQ
 using Newtonsoft.Json.Utilities.LinqBridge;
 #endif
@@ -40,6 +41,7 @@ namespace Newtonsoft.Json.Utilities
     {
         internal static DynamicReflectionDelegateFactory Instance { get; } = new DynamicReflectionDelegateFactory();
 
+        [RequiresDynamicCode(MiscellaneousUtils.AotWarning)]
         private static DynamicMethod CreateDynamicMethod(string name, Type? returnType, Type[] parameterTypes, Type owner)
         {
             DynamicMethod dynamicMethod = !owner.IsInterface()
@@ -49,9 +51,10 @@ namespace Newtonsoft.Json.Utilities
             return dynamicMethod;
         }
 
+        [RequiresDynamicCode(MiscellaneousUtils.AotWarning)]
         public override ObjectConstructor<object> CreateParameterizedConstructor(MethodBase method)
         {
-            DynamicMethod dynamicMethod = CreateDynamicMethod(method.ToString(), typeof(object), new[] { typeof(object[]) }, method.DeclaringType);
+            DynamicMethod dynamicMethod = CreateDynamicMethod(method.ToString()!, typeof(object), new[] { typeof(object[]) }, method.DeclaringType!);
             ILGenerator generator = dynamicMethod.GetILGenerator();
 
             GenerateCreateMethodCallIL(method, generator, 0);
@@ -59,9 +62,10 @@ namespace Newtonsoft.Json.Utilities
             return (ObjectConstructor<object>)dynamicMethod.CreateDelegate(typeof(ObjectConstructor<object>));
         }
 
+        [RequiresDynamicCode(MiscellaneousUtils.AotWarning)]
         public override MethodCall<T, object?> CreateMethodCall<T>(MethodBase method)
         {
-            DynamicMethod dynamicMethod = CreateDynamicMethod(method.ToString(), typeof(object), new[] { typeof(object), typeof(object[]) }, method.DeclaringType);
+            DynamicMethod dynamicMethod = CreateDynamicMethod(method.ToString()!, typeof(object), new[] { typeof(object), typeof(object[]) }, method.DeclaringType!);
             ILGenerator generator = dynamicMethod.GetILGenerator();
 
             GenerateCreateMethodCallIL(method, generator, 1);
@@ -80,14 +84,14 @@ namespace Newtonsoft.Json.Utilities
             generator.Emit(OpCodes.Ldlen);
             generator.Emit(OpCodes.Ldc_I4, args.Length);
             generator.Emit(OpCodes.Beq, argsOk);
-            generator.Emit(OpCodes.Newobj, typeof(TargetParameterCountException).GetConstructor(ReflectionUtils.EmptyTypes));
+            generator.Emit(OpCodes.Newobj, typeof(TargetParameterCountException).GetConstructor(ReflectionUtils.EmptyTypes)!);
             generator.Emit(OpCodes.Throw);
 
             generator.MarkLabel(argsOk);
 
             if (!method.IsConstructor && !method.IsStatic)
             {
-                generator.PushInstance(method.DeclaringType);
+                generator.PushInstance(method.DeclaringType!);
             }
 
             LocalBuilder localConvertible = generator.DeclareLocal(typeof(IConvertible));
@@ -103,7 +107,7 @@ namespace Newtonsoft.Json.Utilities
 
                 if (parameterType.IsByRef)
                 {
-                    parameterType = parameterType.GetElementType();
+                    parameterType = parameterType.GetElementType()!;
 
                     LocalBuilder localVariable = generator.DeclareLocal(parameterType);
 
@@ -170,7 +174,7 @@ namespace Newtonsoft.Json.Utilities
                     if (parameterType.IsPrimitive())
                     {
                         // for primitive types we need to handle type widening (e.g. short -> int)
-                        MethodInfo toParameterTypeMethod = typeof(IConvertible)
+                        MethodInfo? toParameterTypeMethod = typeof(IConvertible)
                             .GetMethod("To" + parameterType.Name, new[] { typeof(IFormatProvider) });
                         
                         if (toParameterTypeMethod != null)
@@ -227,7 +231,7 @@ namespace Newtonsoft.Json.Utilities
             }
 
             Type returnType = method.IsConstructor
-                ? method.DeclaringType
+                ? method.DeclaringType!
                 : ((MethodInfo)method).ReturnType;
 
             if (returnType != typeof(void))
@@ -242,7 +246,10 @@ namespace Newtonsoft.Json.Utilities
             generator.Return();
         }
 
-        public override Func<T> CreateDefaultConstructor<T>(Type type)
+        [RequiresDynamicCode(MiscellaneousUtils.AotWarning)]
+        public override Func<T> CreateDefaultConstructor<T>(
+            [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors | DynamicallyAccessedMemberTypes.NonPublicConstructors)]
+            Type type)
         {
             DynamicMethod dynamicMethod = CreateDynamicMethod("Create" + type.FullName, typeof(T), ReflectionUtils.EmptyTypes, type);
             dynamicMethod.InitLocals = true;
@@ -253,7 +260,11 @@ namespace Newtonsoft.Json.Utilities
             return (Func<T>)dynamicMethod.CreateDelegate(typeof(Func<T>));
         }
 
-        private void GenerateCreateDefaultConstructorIL(Type type, ILGenerator generator, Type delegateType)
+        private void GenerateCreateDefaultConstructorIL(
+            [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors | DynamicallyAccessedMemberTypes.NonPublicConstructors)]
+            Type type,
+            ILGenerator generator,
+            Type delegateType)
         {
             if (type.IsValueType())
             {
@@ -268,7 +279,7 @@ namespace Newtonsoft.Json.Utilities
             }
             else
             {
-                ConstructorInfo constructorInfo =
+                ConstructorInfo? constructorInfo =
                     type.GetConstructor(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance, null, ReflectionUtils.EmptyTypes, null);
 
                 if (constructorInfo == null)
@@ -282,9 +293,10 @@ namespace Newtonsoft.Json.Utilities
             generator.Return();
         }
 
+        [RequiresDynamicCode(MiscellaneousUtils.AotWarning)]
         public override Func<T, object?> CreateGet<T>(PropertyInfo propertyInfo)
         {
-            DynamicMethod dynamicMethod = CreateDynamicMethod("Get" + propertyInfo.Name, typeof(object), new[] { typeof(T) }, propertyInfo.DeclaringType);
+            DynamicMethod dynamicMethod = CreateDynamicMethod("Get" + propertyInfo.Name, typeof(object), new[] { typeof(T) }, propertyInfo.DeclaringType!);
             ILGenerator generator = dynamicMethod.GetILGenerator();
 
             GenerateCreateGetPropertyIL(propertyInfo, generator);
@@ -294,7 +306,7 @@ namespace Newtonsoft.Json.Utilities
 
         private void GenerateCreateGetPropertyIL(PropertyInfo propertyInfo, ILGenerator generator)
         {
-            MethodInfo getMethod = propertyInfo.GetGetMethod(true);
+            MethodInfo? getMethod = propertyInfo.GetGetMethod(true);
             if (getMethod == null)
             {
                 throw new ArgumentException("Property '{0}' does not have a getter.".FormatWith(CultureInfo.InvariantCulture, propertyInfo.Name));
@@ -302,7 +314,7 @@ namespace Newtonsoft.Json.Utilities
 
             if (!getMethod.IsStatic)
             {
-                generator.PushInstance(propertyInfo.DeclaringType);
+                generator.PushInstance(propertyInfo.DeclaringType!);
             }
 
             generator.CallMethod(getMethod);
@@ -310,16 +322,17 @@ namespace Newtonsoft.Json.Utilities
             generator.Return();
         }
 
+        [RequiresDynamicCode(MiscellaneousUtils.AotWarning)]
         public override Func<T, object?> CreateGet<T>(FieldInfo fieldInfo)
         {
             if (fieldInfo.IsLiteral)
             {
-                object constantValue = fieldInfo.GetValue(null);
+                object constantValue = fieldInfo.GetValue(null)!;
                 Func<T, object?> getter = o => constantValue;
                 return getter;
             }
 
-            DynamicMethod dynamicMethod = CreateDynamicMethod("Get" + fieldInfo.Name, typeof(T), new[] { typeof(object) }, fieldInfo.DeclaringType);
+            DynamicMethod dynamicMethod = CreateDynamicMethod("Get" + fieldInfo.Name, typeof(T), new[] { typeof(object) }, fieldInfo.DeclaringType!);
             ILGenerator generator = dynamicMethod.GetILGenerator();
 
             GenerateCreateGetFieldIL(fieldInfo, generator);
@@ -331,7 +344,7 @@ namespace Newtonsoft.Json.Utilities
         {
             if (!fieldInfo.IsStatic)
             {
-                generator.PushInstance(fieldInfo.DeclaringType);
+                generator.PushInstance(fieldInfo.DeclaringType!);
                 generator.Emit(OpCodes.Ldfld, fieldInfo);
             }
             else
@@ -343,9 +356,10 @@ namespace Newtonsoft.Json.Utilities
             generator.Return();
         }
 
+        [RequiresDynamicCode(MiscellaneousUtils.AotWarning)]
         public override Action<T, object?> CreateSet<T>(FieldInfo fieldInfo)
         {
-            DynamicMethod dynamicMethod = CreateDynamicMethod("Set" + fieldInfo.Name, null, new[] { typeof(T), typeof(object) }, fieldInfo.DeclaringType);
+            DynamicMethod dynamicMethod = CreateDynamicMethod("Set" + fieldInfo.Name, null, new[] { typeof(T), typeof(object) }, fieldInfo.DeclaringType!);
             ILGenerator generator = dynamicMethod.GetILGenerator();
 
             GenerateCreateSetFieldIL(fieldInfo, generator);
@@ -357,7 +371,7 @@ namespace Newtonsoft.Json.Utilities
         {
             if (!fieldInfo.IsStatic)
             {
-                generator.PushInstance(fieldInfo.DeclaringType);
+                generator.PushInstance(fieldInfo.DeclaringType!);
             }
 
             generator.Emit(OpCodes.Ldarg_1);
@@ -375,9 +389,10 @@ namespace Newtonsoft.Json.Utilities
             generator.Return();
         }
 
+        [RequiresDynamicCode(MiscellaneousUtils.AotWarning)]
         public override Action<T, object?> CreateSet<T>(PropertyInfo propertyInfo)
         {
-            DynamicMethod dynamicMethod = CreateDynamicMethod("Set" + propertyInfo.Name, null, new[] { typeof(T), typeof(object) }, propertyInfo.DeclaringType);
+            DynamicMethod dynamicMethod = CreateDynamicMethod("Set" + propertyInfo.Name, null, new[] { typeof(T), typeof(object) }, propertyInfo.DeclaringType!);
             ILGenerator generator = dynamicMethod.GetILGenerator();
 
             GenerateCreateSetPropertyIL(propertyInfo, generator);
@@ -387,10 +402,10 @@ namespace Newtonsoft.Json.Utilities
 
         internal static void GenerateCreateSetPropertyIL(PropertyInfo propertyInfo, ILGenerator generator)
         {
-            MethodInfo setMethod = propertyInfo.GetSetMethod(true);
+            MethodInfo setMethod = propertyInfo.GetSetMethod(true)!;
             if (!setMethod.IsStatic)
             {
-                generator.PushInstance(propertyInfo.DeclaringType);
+                generator.PushInstance(propertyInfo.DeclaringType!);
             }
 
             generator.Emit(OpCodes.Ldarg_1);

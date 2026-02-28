@@ -40,6 +40,10 @@ namespace Newtonsoft.Json.Utilities
 
     internal static class MiscellaneousUtils
     {
+        internal const string TrimWarning = "Newtonsoft.Json relies on reflection over types that may be removed when trimming.";
+
+        internal const string AotWarning = "Newtonsoft.Json relies on dynamically creating types that may not be available with Ahead of Time compilation.";
+
         [Conditional("DEBUG")]
         public static void Assert([DoesNotReturnIf(false)] bool condition, string? message = null)
         {
@@ -92,7 +96,7 @@ namespace Newtonsoft.Json.Utilities
                 return "{null}";
             }
 
-            return (value is string s) ? @"""" + s + @"""" : value!.ToString();
+            return (value is string s) ? @"""" + s + @"""" : value!.ToString()!;
         }
 
         public static int ByteArrayCompare(byte[] a1, byte[] a2)
@@ -131,7 +135,7 @@ namespace Newtonsoft.Json.Utilities
 
         public static void GetQualifiedNameParts(string qualifiedName, out string? prefix, out string localName)
         {
-            int colonPosition = qualifiedName.IndexOf(':');
+            int colonPosition = StringUtils.IndexOf(qualifiedName, ':');
 
             if ((colonPosition == -1 || colonPosition == 0) || (qualifiedName.Length - 1) == colonPosition)
             {
